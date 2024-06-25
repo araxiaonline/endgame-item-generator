@@ -36,6 +36,8 @@ type Item struct {
 	MaxDmg1        int `db:"dmg_max1"`
 	MinDmg2        int `db:"dmg_min2"`
 	MaxDmg2        int `db:"dmg_max2"`
+	DmgType1       int `db:"dmg_type1"`
+	DmgType2       int `db:"dmg_type2"`
 	Delay          int
 	Material       int
 	Sheath         int
@@ -97,6 +99,7 @@ func (db Database) GetBossLoot(bossId int) ([]Item, error) {
 		return nil, errors.New("bossId cannot be 0")
 	}
 
+	// This will first find items that are not in the reference boss loot table
 	items := []Item{}
 	sql := `
 	SELECT
@@ -106,6 +109,7 @@ func (db Database) GetBossLoot(bossId int) ([]Item, error) {
 		requiredSkill, requiredLevel,
 		dmg_min1, dmg_max1,
 		dmg_min2,dmg_max2,
+		dmg_type1, dmg_type2,
 		delay, material, sheath, MaxDurability,
 		statsCount,
 		stat_type1, stat_value1,
