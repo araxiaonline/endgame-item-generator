@@ -1,14 +1,14 @@
 package models
 
 import (
-	"database/sql"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 type Database struct {
-	client *sql.DB
+	client *sqlx.DB
 }
 
 var DB Database
@@ -16,7 +16,7 @@ var DB Database
 func Connect() {
 	var connString string = os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@tcp(" + os.Getenv("DB_HOST") + ")/" + os.Getenv("DB_NAME")
 	var err error
-	DB.client, err = sql.Open("mysql", connString)
+	DB.client, err = sqlx.Open("mysql", connString)
 	if err != nil {
 		panic(err.Error())
 	}
