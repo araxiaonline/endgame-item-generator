@@ -14,56 +14,6 @@ type Boss struct {
 	ExperienceModifier int    `db:"ExperienceModifier"`
 }
 
-/**
- * For details about values of item int values use link below
- * @link https://www.azerothcore.org/wiki/item_template
- */
-type Item struct {
-	Entry          int
-	Name           string
-	DisplayId      int `db:"displayid"`
-	Quality        int
-	ItemLevel      int `db:"ItemLevel"`
-	Class          int
-	Subclass       int
-	InventoryType  int `db:"inventoryType"`
-	AllowableClass int `db:"allowableClass"`
-	AllowableRace  int `db:"allowableRace"`
-	RequiredSkill  int `db:"requiredSkill"`
-	RequiredLevel  int `db:"requiredLevel"`
-	Durability     int `db:"MaxDurability"`
-	MinDmg1        int `db:"dmg_min1"`
-	MaxDmg1        int `db:"dmg_max1"`
-	MinDmg2        int `db:"dmg_min2"`
-	MaxDmg2        int `db:"dmg_max2"`
-	DmgType1       int `db:"dmg_type1"`
-	DmgType2       int `db:"dmg_type2"`
-	Delay          int
-	Material       int
-	Sheath         int
-	StatsCount     int `db:"statsCount"`
-	StatType1      int `db:"stat_type1"`
-	StatValue1     int `db:"stat_value1"`
-	StatType2      int `db:"stat_type2"`
-	StatValue2     int `db:"stat_value2"`
-	StatType3      int `db:"stat_type3"`
-	StatValue3     int `db:"stat_value3"`
-	StatType4      int `db:"stat_type4"`
-	StatValue4     int `db:"stat_value4"`
-	StatType5      int `db:"stat_type5"`
-	StatValue5     int `db:"stat_value5"`
-	StatType6      int `db:"stat_type6"`
-	StatValue6     int `db:"stat_value6"`
-	StatType7      int `db:"stat_type7"`
-	StatValue7     int `db:"stat_value7"`
-	StatType8      int `db:"stat_type8"`
-	StatValue8     int `db:"stat_value8"`
-	StatType9      int `db:"stat_type9"`
-	StatValue9     int `db:"stat_value9"`
-	StatType10     int `db:"stat_type10"`
-	StatValue10    int `db:"stat_value10"`
-}
-
 func (db Database) GetBosses(mapId int) ([]Boss, error) {
 
 	if mapId == 0 {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/araxiaonline/endgame-item-generator/models"
@@ -11,10 +12,9 @@ import (
 func main() {
 
 	godotenv.Load()
-
 	models.Connect()
 
-	bosses, err := models.DB.GetBosses(189)
+	bosses, err := models.DB.GetBosses(540)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,44 +29,26 @@ func main() {
 		}
 
 		for _, item := range items {
-			log.Println(item)
+
+			fmt.Printf("Item %v ItemLevel %v \n", item.Name, item.ItemLevel)
+
+			stat, value, err := item.GetPrimaryStat()
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(stat, value)
+
 		}
 
 	}
 
+	iLevel := 219
+	qual := 3
+	delay := 2.60
+	sub := 0
+	myItem := models.Item{Name: "Hypnotic Blade", ItemLevel: &iLevel, Quality: &qual, Delay: &delay, Subclass: &sub}
+	dps, err := myItem.ScaleDPS()
+
+	log.Printf("Item %s DPS: %.1f", myItem.Name, dps)
 	defer models.DB.Close()
-
-	// theItem := models.Item{}
-	// s := reflect.ValueOf(&theItem).Elem()
-	// numCols := s.NumField()
-	// log.Println(numCols)
-	// columns := make([]interface{}, numCols)
-	// fmt.Print(columns)
-	// for i := 0; i < numCols; i++ {
-	// 	field := s.Field(i)
-	// 	columns[i] = field.Addr().Interface()
-	// }
-	// fmt.Println(columns...)
-
-	// var rows *sql.Rows
-	// rows, err = DB.Query("SELECT name, entry FROM item_template where name like 'Hypnotic B%';")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// for rows.Next() {
-	// 	var name string
-	// 	var entry int
-
-	// 	err := rows.Scan(&name, &entry)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-
-	// 	fmt.Println(name, entry)
-	// }
-
-	// rows.Close()
-
-	// defer db.Close()
 }
