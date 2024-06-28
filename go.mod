@@ -4,6 +4,7 @@ go 1.22.4
 
 replace github.com/araxiaonline/endgame-item-generator/models => ../models
 
+
 require github.com/go-sql-driver/mysql v1.8.1
 
 require (
