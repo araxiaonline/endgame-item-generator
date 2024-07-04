@@ -145,6 +145,7 @@ func calcMaxValue(base int, sides int) int {
 	return base + sides
 }
 
+// get a List of the spell effects (not auras) that need to be scaled
 func (s Spell) GetSpellEffects() []SpellEffect {
 	effects := make([]SpellEffect, 0)
 
@@ -252,6 +253,7 @@ func convertAuraEffect(effect int) int {
 	return AuraEffectsStatMap[effect]
 }
 
+// Converts spell buffs to item stats making it easier to convert and normalize
 func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 	stats := []ConvItemStat{}
 

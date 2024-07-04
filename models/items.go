@@ -304,7 +304,7 @@ func (d Database) GetItem(entry int) (Item, error) {
 	}
 
 	item := Item{}
-	sql := "SELECT " + utils.GetItemFields() + " FROM item_template WHERE entry = ?"
+	sql := "SELECT " + utils.GetItemFields("") + " FROM item_template WHERE entry = ?"
 	err := d.client.Get(&item, sql, entry)
 	if err != nil {
 		return Item{}, err

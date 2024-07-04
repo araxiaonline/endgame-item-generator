@@ -1,8 +1,13 @@
 package utils
 
-func GetItemFields() string {
+func GetItemFields(prefix string) string {
+	pre := ""
+	if prefix != "" {
+		pre = prefix + "."
+	}
+
 	return `	
-	entry, name, displayid,
+	` + pre + `entry, ` + pre + `name, displayid,
 	quality, ItemLevel, class, subclass, inventoryType,
 	allowableClass, allowableRace,
 	requiredSkill, requiredLevel,

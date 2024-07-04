@@ -31,7 +31,7 @@ func main() {
 	for _, boss := range bosses {
 
 		items, err := models.DB.GetBossLoot(boss.Entry)
-		log.Printf("Boss: %s has %v items\n", boss.Name, len(items))
+		log.Printf("Boss: %s Entry: %v has %v items\n", boss.Name, boss.Entry, len(items))
 		if err != nil {
 			log.Fatal(err)
 		}
