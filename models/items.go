@@ -66,7 +66,7 @@ type Item struct {
 	SpellTrigger3  *int `db:"spelltrigger_3"`
 }
 
-var armorModifiers = map[int]float64{
+var ArmorModifiers = map[int]float64{
 	1:  0.813, // Head
 	2:  1.0,   // Neck
 	3:  0.75,  // Shoulder
@@ -81,7 +81,7 @@ var armorModifiers = map[int]float64{
 	20: 1.0,   // Robe (using the same as Chest for simplicity)
 }
 
-var weaponModifiers = map[int]float64{
+var WeaponModifiers = map[int]float64{
 	13: 0.42, // One-Hand (not to confuse with Off-Hand = 22)
 	14: 0.56, // Shield (class = armor, not weapon even if in weapon slot)
 	15: 0.32, // Ranged (Bows) (see also Ranged right = 26)
@@ -99,7 +99,7 @@ var weaponModifiers = map[int]float64{
 	27: 1.0,  // Quiver (assuming same as Chest for simplicity)
 }
 
-var qualityModifiers = map[int]float64{
+var QualityModifiers = map[int]float64{
 	0: 1.0, // Common
 	1: 1.1, // Uncommon
 	2: 1.2, // Rare
@@ -108,7 +108,7 @@ var qualityModifiers = map[int]float64{
 	5: 1.5, // Artifact
 }
 
-var statModifiers = map[int]float64{
+var StatModifiers = map[int]float64{
 	0:  1.0,  // ITEM_MOD_MANA
 	1:  1.0,  // ITEM_MOD_HEALTH
 	3:  1.0,  // ITEM_MOD_AGILITY
@@ -143,10 +143,10 @@ var statModifiers = map[int]float64{
 	36: 1.0,  // ITEM_MOD_HASTE_RATING
 	37: 1.0,  // ITEM_MOD_EXPERTISE_RATING
 	38: 0.5,  // ITEM_MOD_ATTACK_POWER
-	39: 1.0,  // ITEM_MOD_RANGED_ATTACK_POWER
-	40: 1.0,  // ITEM_MOD_FERAL_ATTACK_POWER (not used as of 3.3)
-	41: 1.0,  // ITEM_MOD_SPELL_HEALING_DONE
-	42: 1.0,  // ITEM_MOD_SPELL_DAMAGE_DONE
+	39: 0.5,  // ITEM_MOD_RANGED_ATTACK_POWER
+	40: 0.5,  // ITEM_MOD_FERAL_ATTACK_POWER (not used as of 3.3)
+	41: 0.5,  // ITEM_MOD_SPELL_HEALING_DONE
+	42: 0.5,  // ITEM_MOD_SPELL_DAMAGE_DONE
 	43: 2.5,  // ITEM_MOD_MANA_REGENERATION
 	44: 1.0,  // ITEM_MOD_ARMOR_PENETRATION_RATING
 	45: 0.5,  // ITEM_MOD_SPELL_POWER
@@ -322,12 +322,12 @@ func (item Item) GetStatPercents() map[int]int64 {
 			continue
 		}
 
-		statBudget += math.Round(float64(statValue) / statModifiers[int(statType)])
+		statBudget += math.Round(float64(statValue) / StatModifiers[int(statType)])
 		statMap[int(statType)] = statValue
 	}
 
 	fmt.Printf("Stat Budget: %v\n", statBudget)
 	fmt.Printf("Stat Map: %v\n", statMap)
 
-	return map[int]int64{}
+	return statMap
 }

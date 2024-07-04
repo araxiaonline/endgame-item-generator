@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 
 	"github.com/araxiaonline/endgame-item-generator/utils"
@@ -200,21 +201,26 @@ func (s Spell) GetAuraEffects() []SpellEffect {
 }
 
 // this spell effect has stats or effects that need to be scaled
-func (s Spell) effectNeedsScaled() bool {
+func (s Spell) SpellEffectsNeedsScaled() bool {
 	if s.Effect1 == 0 {
 		return false
 	}
 
-	for _, effect := range SpellEffects {
-		if s.Effect1 == effect || s.Effect2 == effect || s.Effect3 == effect {
-			return true
+	needsScaled := false
+	effects := s.GetSpellEffects()
+	for _, e := range effects {
+
+		if !funk.Contains(SpellEffects, e.Effect) || e.Effect == 6 {
+			continue
 		}
+		needsScaled = true
 	}
-	return false
+
+	return needsScaled
 }
 
 // this aura effect has stats or effects that need to be scaled
-func (s Spell) auraEffectNeedsScaled() bool {
+func (s Spell) AuraEffectNeedsScaled() bool {
 	if s.EffectAura1 == 0 {
 		return false
 	}
@@ -246,8 +252,8 @@ func convertAuraEffect(effect int) int {
 	return AuraEffectsStatMap[effect]
 }
 
-func (s Spell) ConvertToStats() ([]SpellStat, error) {
-	stats := []SpellStat{}
+func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
+	stats := []ConvItemStat{}
 
 	if s.Effect1 == 0 && s.EffectAura1 == 0 {
 		return stats, fmt.Errorf("spell does not have an effect1 or auraEffect1")
@@ -264,17 +270,13 @@ func (s Spell) ConvertToStats() ([]SpellStat, error) {
 			continue
 		}
 
-		stats = append(stats, SpellStat{
+		statMod := float64(StatModifiers[statId])
+		stats = append(stats, ConvItemStat{
 			StatType:  statId,
 			StatValue: e.CalculatedMax,
-			Budget:    0,
+			Budget:    int(math.Ceil(float64(e.CalculatedMax) * statMod)),
 		})
 	}
-
-	statId = convertAuraEffect(s.EffectAura1)
-
-	// spell effects first
-	// effects := s.GetSpellEffects()
 
 	return stats, nil
 }

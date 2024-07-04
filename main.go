@@ -22,7 +22,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bosses, err := models.DB.GetBosses(189)
+	bosses, err := models.DB.GetBosses(540)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,7 +51,18 @@ func main() {
 				log.Printf("Spell Aura 1: %v 2: %v, 3: %v \n", spell.EffectAura1, spell.EffectAura2, spell.EffectAura3)
 				log.Printf("BasePoints 1: %v 2: %v 3: %v \n", spell.EffectBasePoints1, spell.EffectBasePoints2, spell.EffectBasePoints3)
 				log.Printf("RealPointsPerLevel 1: %v 2: %v 3: %v \n", spell.EffectRealPointsPerLevel1, spell.EffectRealPointsPerLevel2, spell.EffectRealPointsPerLevel3)
-				log.Printf("DieCasts 1: %v 2: %v 3: %v \n\n", spell.EffectDieSides1, spell.EffectDieSides2, spell.EffectDieSides3)
+				log.Printf("DieCasts 1: %v 2: %v 3: %v \n", spell.EffectDieSides1, spell.EffectDieSides2, spell.EffectDieSides3)
+				log.Printf("this has a spell that needs scaled up %v", spell.SpellEffectsNeedsScaled())
+				log.Printf("this has an aura that needs scaled up %v\n\n", spell.AuraEffectNeedsScaled())
+
+				convStats, err := spell.ConvertToStats()
+				if err != nil {
+					log.Printf("Failed to convert spell to stats: %v", err)
+				}
+
+				scaleItemStats := item.GetStatPercents()
+				log.Printf("Scaled Item Stats %v", scaleItemStats)
+				log.Printf("Scaled Spell Stats: %v\n", convStats)
 
 			}
 
