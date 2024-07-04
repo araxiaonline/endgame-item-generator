@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/rand/v2"
 	"reflect"
 
@@ -57,6 +58,12 @@ type Item struct {
 	StatValue9     *int `db:"stat_value9"`
 	StatType10     *int `db:"stat_type10"`
 	StatValue10    *int `db:"stat_value10"`
+	SpellId1       *int `db:"spellid_1"`
+	SpellId2       *int `db:"spellid_2"`
+	SpellId3       *int `db:"spellid_3"`
+	SpellTrigger1  *int `db:"spelltrigger_1"`
+	SpellTrigger2  *int `db:"spelltrigger_2"`
+	SpellTrigger3  *int `db:"spelltrigger_3"`
 }
 
 var armorModifiers = map[int]float64{
@@ -235,6 +242,7 @@ func (item Item) GetDPS() (float64, error) {
 	return dps, nil
 }
 
+// Scales and items dps damage numbers based on a desired item level.
 func (item *Item) ScaleDPS(level int) (float64, error) {
 	if item.ItemLevel == nil {
 		return 0, fmt.Errorf("ItemLevel is not set")
@@ -294,4 +302,32 @@ func (d Database) GetItem(entry int) (Item, error) {
 	}
 
 	return item, nil
+}
+
+// Stat Formula scaler
+// Ceiling of ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
+// i.e)   Green Strength Helmet  (((100 * 1.1 * 1.0)^1.705) * 1)^(1/1.7095) / 1.0 = 110 Strength on item
+
+// Create a Map of stat percentages based on the current stat and how budgets are caluated
+func (item Item) GetStatPercents() map[int]int64 {
+
+	statMap := make(map[int]int64)
+	statBudget := 0.0
+
+	values := reflect.ValueOf(item)
+	for i := 1; i < 11; i++ {
+		var statValue = values.FieldByName(fmt.Sprintf("StatValue%v", i)).Elem().Int()
+		var statType = values.FieldByName(fmt.Sprintf("StatType%v", i)).Elem().Int()
+		if statValue == 0 {
+			continue
+		}
+
+		statBudget += math.Round(float64(statValue) / statModifiers[int(statType)])
+		statMap[int(statType)] = statValue
+	}
+
+	fmt.Printf("Stat Budget: %v\n", statBudget)
+	fmt.Printf("Stat Map: %v\n", statMap)
+
+	return map[int]int64{}
 }

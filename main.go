@@ -22,7 +22,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bosses, err := models.DB.GetBosses(540)
+	bosses, err := models.DB.GetBosses(189)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +38,22 @@ func main() {
 
 		for _, item := range items {
 
-			fmt.Printf("Item %v ItemLevel %v \n", item.Name, item.ItemLevel)
+			fmt.Printf("\nItem %v Entry: %v ItemLevel %v \n", item.Name, item.Entry, *item.ItemLevel)
+			// item.GetStatPercents()
+
+			if *item.SpellId1 != 0 {
+				spell, err := models.DB.GetSpell(*item.SpellId1)
+				if err != nil {
+					log.Printf("failed to get the spell: %v error: %v", *item.SpellId1, err)
+				}
+
+				log.Printf("Spell %v Spell Effects 1: %v 2: %v, 3: %v \n", spell.Name, spell.Effect1, spell.Effect2, spell.Effect3)
+				log.Printf("Spell Aura 1: %v 2: %v, 3: %v \n", spell.EffectAura1, spell.EffectAura2, spell.EffectAura3)
+				log.Printf("BasePoints 1: %v 2: %v 3: %v \n", spell.EffectBasePoints1, spell.EffectBasePoints2, spell.EffectBasePoints3)
+				log.Printf("RealPointsPerLevel 1: %v 2: %v 3: %v \n", spell.EffectRealPointsPerLevel1, spell.EffectRealPointsPerLevel2, spell.EffectRealPointsPerLevel3)
+				log.Printf("DieCasts 1: %v 2: %v 3: %v \n\n", spell.EffectDieSides1, spell.EffectDieSides2, spell.EffectDieSides3)
+
+			}
 
 			// stat, value, err := item.GetPrimaryStat()
 			if err != nil {
