@@ -68,5 +68,7 @@ func (db Database) GetBossLoot(bossId int) ([]Item, error) {
 		return nil, err
 	}
 
+	// Next we have to get the boss reference items and add them
+
 	return items, nil
 }

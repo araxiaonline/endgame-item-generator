@@ -37,10 +37,10 @@ var SpellAuraEffects = [...]int{
 
 var AuraEffectsStatMap = map[int]int{
 	8:   46,
-	13:  42,
+	13:  45,
 	85:  43,
 	99:  38,
-	124: 39,
+	124: 38,
 	135: 45,
 }
 
@@ -260,6 +260,7 @@ func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 	}
 
 	effects := s.GetAuraEffects()
+	var seen []int
 	for _, e := range effects {
 		if !AuraEffectCanBeConv(e.Effect) {
 			continue
@@ -270,6 +271,14 @@ func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 			continue
 		}
 
+		if funk.Contains(seen, statId) {
+			continue
+		}
+
+		// keep track if we have already seen this stat so we do not duplicate
+		// Wotlk changed everything to spell power so might as well do the same in
+		// scaling process.
+		seen = append(seen, statId)
 		statMod := float64(StatModifiers[statId])
 		stats = append(stats, ConvItemStat{
 			StatType:  statId,

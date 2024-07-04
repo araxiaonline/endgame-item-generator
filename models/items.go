@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -64,13 +65,15 @@ type Item struct {
 	SpellTrigger1  *int `db:"spelltrigger_1"`
 	SpellTrigger2  *int `db:"spelltrigger_2"`
 	SpellTrigger3  *int `db:"spelltrigger_3"`
+	StatsMap       map[int]*ItemStat
+	ConvStatCount  int
+	Spells         []Spell
 }
 
 var ArmorModifiers = map[int]float64{
 	1:  0.813, // Head
 	2:  1.0,   // Neck
 	3:  0.75,  // Shoulder
-	4:  1.0,   // Shirt (using the same as Chest for simplicity)
 	5:  1.0,   // Chest
 	6:  0.562, // Waist
 	7:  0.875, // Legs
@@ -78,7 +81,6 @@ var ArmorModifiers = map[int]float64{
 	9:  0.437, // Wrists
 	10: 0.625, // Hands
 	11: 1.0,   // Finger
-	20: 1.0,   // Robe (using the same as Chest for simplicity)
 }
 
 var WeaponModifiers = map[int]float64{
@@ -153,6 +155,13 @@ var StatModifiers = map[int]float64{
 	46: 1.0,  // ITEM_MOD_HEALTH_REGEN
 	47: 2.0,  // ITEM_MOD_SPELL_PENETRATION
 	48: 0.65, // ITEM_MOD_BLOCK_VALUE
+}
+
+type ItemStat struct {
+	Value    int
+	Percent  float64
+	Type     string
+	AdjValue float64
 }
 
 func (item Item) GetPrimaryStat() (int, int, error) {
@@ -309,9 +318,9 @@ func (d Database) GetItem(entry int) (Item, error) {
 // i.e)   Green Strength Helmet  (((100 * 1.1 * 1.0)^1.705) * 1)^(1/1.7095) / 1.0 = 110 Strength on item
 
 // Create a Map of stat percentages based on the current stat and how budgets are caluated
-func (item Item) GetStatPercents() map[int]int64 {
+func (item Item) GetStatPercents(spellStats []ConvItemStat) map[int]*ItemStat {
 
-	statMap := make(map[int]int64)
+	statMap := make(map[int]*ItemStat)
 	statBudget := 0.0
 
 	values := reflect.ValueOf(item)
@@ -322,12 +331,142 @@ func (item Item) GetStatPercents() map[int]int64 {
 			continue
 		}
 
-		statBudget += math.Round(float64(statValue) / StatModifiers[int(statType)])
-		statMap[int(statType)] = statValue
+		adjValue := float64(statValue) / StatModifiers[int(statType)]
+		statBudget += adjValue
+		statMap[int(statType)] = &ItemStat{
+			Value:    int(statValue),
+			Percent:  0.0,
+			Type:     "Item",
+			AdjValue: adjValue,
+		}
 	}
 
-	fmt.Printf("Stat Budget: %v\n", statBudget)
-	fmt.Printf("Stat Map: %v\n", statMap)
+	// Calculate the total budget for the spell stats if we have some
+	for _, spellStat := range spellStats {
+		statBudget += float64(spellStat.Budget)
+		statMap[spellStat.StatType] = &ItemStat{
+			Value:    spellStat.StatValue,
+			Percent:  0.0,
+			Type:     "Spell",
+			AdjValue: float64(spellStat.Budget),
+		}
+	}
+
+	// Combine all stats and calculate percentages for each stat
+	for statId, stat := range statMap {
+		statMap[statId].Percent = math.Round(float64(stat.AdjValue)/statBudget*100) / 100
+	}
 
 	return statMap
+}
+
+// get an array of all the spells set on the item
+func (item *Item) GetSpells() ([]Spell, error) {
+	// dont reload for the same item .
+	if len(item.Spells) > 0 {
+		return item.Spells, nil
+	}
+
+	spells := []Spell{}
+	values := reflect.ValueOf(item)
+	for i := 1; i < 4; i++ {
+		spellId := values.Elem().FieldByName(fmt.Sprintf("SpellId%v", i)).Elem().Int()
+		if spellId == 0 {
+			continue
+		}
+
+		spell, err := DB.GetSpell(int(spellId))
+		if err != nil {
+			log.Printf("failed to get the spell: %v error: %v", spellId, err)
+			continue
+		}
+
+		spells = append(spells, spell)
+	}
+	item.Spells = spells
+	return spells, nil
+}
+
+func (item *Item) ScaleItem() (bool, error) {
+	var allSpellStats []ConvItemStat
+	if item.ItemLevel == nil {
+		return false, errors.New("field itemLevel is not set")
+	}
+
+	if item.Quality == nil {
+		return false, errors.New("field quality is not set")
+	}
+
+	// Get all the spell Stats on the item we can convert
+	spells, err := item.GetSpells()
+	if err != nil {
+		log.Printf("Failed to get spells for item: %v", err)
+		return false, err
+	}
+
+	for i := 0; i < len(spells); i++ {
+		convStats, err := spells[i].ConvertToStats()
+		if err != nil {
+			log.Printf("Failed to convert spell to stats: %v for spell %v", err, spells[i].Name)
+			continue
+		}
+
+		allSpellStats = append(allSpellStats, convStats...)
+	}
+
+	allStats := item.GetStatPercents(allSpellStats)
+	for statId, stat := range allStats {
+		log.Printf(">>>>>> StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+	}
+
+	return true, nil
+
+	// // Calculate the Armor or Weapon modifier
+	// var modifier float64
+	// if *item.Class == 4 {
+	// 	modifier = ArmorModifiers[*item.InventoryType]
+	// } else {
+	// 	modifier = WeaponModifiers[*item.InventoryType]
+	// }
+
+	// // Calculate the Quality Modifier
+	// qualityModifier := QualityModifiers[*item.Quality]
+
+	// // Calculate the Stat Modifier
+	// statModifier := StatModifiers[primaryStat]
+
+	// // Calculate the budget for the item
+	// budget := math.Pow(float64(*item.ItemLevel)*qualityModifier*modifier, 1.7095)
+
+	// // Calculate the percentage of stats
+	// percent := math.Pow(budget, 1/1.7095) / statModifier
+
+	// // Calculate the budget for the primary stat
+	// primaryBudget := percent * float64(primaryVal)
+
+	// // Calculate the budget for the other stats
+	// otherBudget := percent - primaryBudget
+
+	// // Calculate the budget for each stat
+	// statBudget := otherBudget / float64(*item.StatsCount)
+
+	// // Calculate the adjusted value for the primary stat
+	// adjPrimaryVal := primaryBudget * statModifier
+
+	// // Calculate the adjusted value for the other stats
+	// adjStatVal := statBudget * statModifier
+
+	// // Update the primary stat value
+	// primaryVal = int(adjPrimaryVal)
+
+	// // Update the other stats
+	// values := reflect.ValueOf(item)
+	// for i := 1; i < 11; i++ {
+	// 	statType := values.FieldByName(fmt.Sprintf("StatType%v", i)).Elem().Int()
+	// 	if statType == primaryStat {
+	// 		continue
+	// 	}
+
+	// 	statValue := values.FieldByName(fmt.Sprintf("StatValue
+
 }

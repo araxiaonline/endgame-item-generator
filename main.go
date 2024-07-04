@@ -11,13 +11,14 @@ import (
 
 func main() {
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	godotenv.Load()
 	models.Connect()
 
 	weapon, err := models.DB.GetItem(13982)
 	weapon.ScaleDPS(350)
-	log.Printf("Weapon: %v-%v", *weapon.MinDmg1, *weapon.MaxDmg1)
-	log.Printf("Weapon: %v-%v", *weapon.MinDmg2, *weapon.MaxDmg2)
+	// log.Printf("Weapon: %v-%v", *weapon.MinDmg1, *weapon.MaxDmg1)
+	// log.Printf("Weapon: %v-%v", *weapon.MinDmg2, *weapon.MaxDmg2)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,9 +30,8 @@ func main() {
 
 	for _, boss := range bosses {
 
-		// log.Printf("Getting loot for Boss: %s\n", boss.Name)
-
 		items, err := models.DB.GetBossLoot(boss.Entry)
+		log.Printf("Boss: %s has %v items\n", boss.Name, len(items))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -41,29 +41,31 @@ func main() {
 			fmt.Printf("\nItem %v Entry: %v ItemLevel %v \n", item.Name, item.Entry, *item.ItemLevel)
 			// item.GetStatPercents()
 
-			if *item.SpellId1 != 0 {
-				spell, err := models.DB.GetSpell(*item.SpellId1)
-				if err != nil {
-					log.Printf("failed to get the spell: %v error: %v", *item.SpellId1, err)
-				}
+			// if *item.SpellId1 != 0 {
+			// 	spell, err := models.DB.GetSpell(*item.SpellId1)
+			// 	if err != nil {
+			// 		log.Printf("failed to get the spell: %v error: %v", *item.SpellId1, err)
+			// 	}
 
-				log.Printf("Spell %v Spell Effects 1: %v 2: %v, 3: %v \n", spell.Name, spell.Effect1, spell.Effect2, spell.Effect3)
-				log.Printf("Spell Aura 1: %v 2: %v, 3: %v \n", spell.EffectAura1, spell.EffectAura2, spell.EffectAura3)
-				log.Printf("BasePoints 1: %v 2: %v 3: %v \n", spell.EffectBasePoints1, spell.EffectBasePoints2, spell.EffectBasePoints3)
-				log.Printf("RealPointsPerLevel 1: %v 2: %v 3: %v \n", spell.EffectRealPointsPerLevel1, spell.EffectRealPointsPerLevel2, spell.EffectRealPointsPerLevel3)
-				log.Printf("DieCasts 1: %v 2: %v 3: %v \n", spell.EffectDieSides1, spell.EffectDieSides2, spell.EffectDieSides3)
-				log.Printf("this has a spell that needs scaled up %v", spell.SpellEffectsNeedsScaled())
-				log.Printf("this has an aura that needs scaled up %v\n\n", spell.AuraEffectNeedsScaled())
+			// log.Printf("Spell %v Spell Effects 1: %v 2: %v, 3: %v \n", spell.Name, spell.Effect1, spell.Effect2, spell.Effect3)
+			// log.Printf("Spell Aura 1: %v 2: %v, 3: %v \n", spell.EffectAura1, spell.EffectAura2, spell.EffectAura3)
 
-				convStats, err := spell.ConvertToStats()
-				if err != nil {
-					log.Printf("Failed to convert spell to stats: %v", err)
-				}
+			// convStats, err := spell.ConvertToStats()
+			// if err != nil {
+			// 	log.Printf("Failed to convert spell to stats: %v", err)
+			// }
 
-				scaleItemStats := item.GetStatPercents()
-				log.Printf("Scaled Item Stats %v", scaleItemStats)
-				log.Printf("Scaled Spell Stats: %v\n", convStats)
+			// scaleItemStats := item.GetStatPercents(convStats)
+			// for statId, stat := range scaleItemStats {
+			// 	log.Printf("StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+			// }
+			//				log.Printf("Scaled Spell Stats: %v\n", convStats)
 
+			// }
+
+			_, error := item.ScaleItem()
+			if error != nil {
+				log.Printf("Failed to scale item: %v", error)
 			}
 
 			// stat, value, err := item.GetPrimaryStat()
