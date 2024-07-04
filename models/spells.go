@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/araxiaonline/endgame-item-generator/utils"
+	"github.com/thoas/go-funk"
 )
 
 var SpellEffects = [...]int{
@@ -39,6 +40,22 @@ var SpellAuraEffects = [...]int{
 	127, // Melee Attack Bonus Dmg
 	135, // Modifies Healing Done
 	189, // Modifies Armor Rating
+}
+
+var SpellEffectStatMap = map[int][]int{
+	10: {41},
+	17: {38, 39},
+	22: {14},
+	23: {15},
+	58: {38, 39},
+	67: {1},
+}
+
+// result of a stat conversion from spell to raw stats on item
+type SpellStat struct {
+	StatType  int
+	StatValue int
+	Budget    int
 }
 
 type Spell struct {
@@ -82,7 +99,82 @@ func (db Database) GetSpell(id int) (Spell, error) {
 		return Spell{}, fmt.Errorf("failed to get spell: %v", err)
 	}
 
-	// log.Printf("%s was found for id %d", spell.Name, spell.ID)
-
 	return spell, nil
+}
+
+func (s Spell) effectNeedsScaled() bool {
+	if s.Effect1 == 0 {
+		return false
+	}
+
+	for _, effect := range SpellEffects {
+		if s.Effect1 == effect || s.Effect2 == effect || s.Effect3 == effect {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Spell) auraEffectNeedsScaled() bool {
+	if s.EffectAura1 == 0 {
+		return false
+	}
+
+	for _, effect := range SpellAuraEffects {
+		if s.EffectAura1 == effect || s.EffectAura2 == effect || s.EffectAura3 == effect {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Spell) HasAuraEffect() bool {
+	return s.EffectAura1 != 0 || s.EffectAura2 != 0 || s.EffectAura3 != 0
+}
+
+// If a spell effect can be converted over to a primary stat addition
+func EffectCanBeConv(effect int) bool {
+	statMods := [...]int{17, 10, 22, 23, 58}
+	return funk.Contains(statMods, effect)
+}
+
+func AuraEffectCanBeConv(effect int) bool {
+
+	statMods := [...]int{13, 22, 34, 85, 99, 107, 115, 124, 135, 189}
+	return funk.Contains(statMods, effect)
+}
+
+func (s Spell) ConvertToStats() ([]SpellStat, error) {
+	stats := []SpellStat{}
+
+	if s.Effect1 == 0 && s.EffectAura1 == 0 {
+		fmt.Print("Spell does not have an effect1 or autaEffect1")
+		return stats, nil
+	}
+
+	if EffectCanBeConv(s.Effect1) {
+		stats = append(stats, SpellStat{
+			StatType:  SpellEffectStatMap[s.Effect1][0],
+			StatValue: s.EffectBasePoints1,
+			Budget:    s.EffectBonusMultiplier1,
+		})
+	}
+
+	if s.Effect2 != 0 && EffectCanBeConv(s.Effect2) {
+		stats = append(stats, SpellStat{
+			StatType:  SpellEffectStatMap[s.Effect2][0],
+			StatValue: s.EffectBasePoints2,
+			Budget:    s.EffectBonusMultiplier2,
+		})
+	}
+
+	if s.Effect3 != 0 && EffectCanBeConv(s.Effect3) {
+		stats = append(stats, SpellStat{
+			StatType:  SpellEffectStatMap[s.Effect3][0],
+			StatValue: s.EffectBasePoints3,
+			Budget:    s.EffectBonusMultiplier3,
+		})
+	}
+
+	return stats, nil
 }
