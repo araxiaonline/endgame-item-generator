@@ -23,6 +23,8 @@ type Item struct {
 	ItemLevel      *int `db:"ItemLevel"`
 	Class          *int
 	Subclass       *int
+	Armor          *int `db:"armor"`
+	Material       *int `db:"material"`
 	InventoryType  *int `db:"inventoryType"`
 	AllowableClass *int `db:"allowableClass"`
 	AllowableRace  *int `db:"allowableRace"`
@@ -36,7 +38,6 @@ type Item struct {
 	DmgType1       *int `db:"dmg_type1"`
 	DmgType2       *int `db:"dmg_type2"`
 	Delay          *float64
-	Material       *int
 	Sheath         *int
 	StatsCount     *int `db:"statsCount"`
 	StatType1      *int `db:"stat_type1"`
@@ -70,7 +71,7 @@ type Item struct {
 	Spells         []Spell
 }
 
-var ArmorModifiers = map[int]float64{
+var InvTypeModifiers = map[int]float64{
 	1:  0.813, // Head
 	2:  1.0,   // Neck
 	3:  0.75,  // Shoulder
@@ -81,24 +82,21 @@ var ArmorModifiers = map[int]float64{
 	9:  0.437, // Wrists
 	10: 0.625, // Hands
 	11: 1.0,   // Finger
-}
-
-var WeaponModifiers = map[int]float64{
-	13: 0.42, // One-Hand (not to confuse with Off-Hand = 22)
-	14: 0.56, // Shield (class = armor, not weapon even if in weapon slot)
-	15: 0.32, // Ranged (Bows) (see also Ranged right = 26)
-	16: 0.56, // Back
-	17: 1.0,  // Two-Hand
-	18: 1.0,  // Bag (assuming same as Chest for simplicity)
-	19: 1.0,  // Tabard (assuming same as Chest for simplicity)
-	20: 1.0,  // Robe (see also Chest = 5)
-	21: 1.0,  // Main hand
-	22: 0.42, // Off Hand weapons (see also One-Hand = 13)
-	23: 0.56, // Held in Off-Hand (class = armor, not weapon even if in weapon slot)
-	24: 1.0,  // Ammo (assuming same as Chest for simplicity)
-	25: 0.32, // Thrown
-	26: 0.32, // Ranged right (Wands, Guns) (see also Ranged = 15)
-	27: 1.0,  // Quiver (assuming same as Chest for simplicity)
+	13: 0.42,  // One-Hand (not to confuse with Off-Hand = 22)
+	14: 0.56,  // Shield (class = armor, not weapon even if in weapon slot)
+	15: 0.32,  // Ranged (Bows) (see also Ranged right = 26)
+	16: 0.56,  // Back
+	17: 1.0,   // Two-Hand
+	18: 1.0,   // Bag (assuming same as Chest for simplicity)
+	19: 1.0,   // Tabard (assuming same as Chest for simplicity)
+	20: 1.0,   // Robe (see also Chest = 5)
+	21: 1.0,   // Main hand
+	22: 0.42,  // Off Hand weapons (see also One-Hand = 13)
+	23: 0.56,  // Held in Off-Hand (class = armor, not weapon even if in weapon slot)
+	24: 1.0,   // Ammo (assuming same as Chest for simplicity)
+	25: 0.32,  // Thrown
+	26: 0.32,  // Ranged right (Wands, Guns) (see also Ranged = 15)
+	27: 1.0,   // Quiver (assuming same as Chest for simplicity)
 }
 
 var QualityModifiers = map[int]float64{
@@ -106,8 +104,16 @@ var QualityModifiers = map[int]float64{
 	1: 1.1, // Uncommon
 	2: 1.2, // Rare
 	3: 1.3, // Epic
-	4: 1.4, // Legendary
-	5: 1.5, // Artifact
+	4: 1.5, // Legendary
+	5: 1.7, // Artifact
+}
+
+var MaterialModifiers = map[int]float64{
+	5: 5,   // Mail
+	6: 9.0, // Plate
+	7: 1.2, // Cloth
+	8: 2.2, // Leather
+	1: 20,  // Shield
 }
 
 var StatModifiers = map[int]float64{
@@ -198,22 +204,22 @@ func (i Item) GetDpsModifier() (float64, error) {
 	typeModifier := 0.0
 	// Is a One-Handed Weapon
 	if *i.Subclass == 0 || *i.Subclass == 4 || *i.Subclass == 13 || *i.Subclass == 15 {
-		typeModifier = 0.55
+		typeModifier = 0.68
 	}
 
 	// Is a Two-Handed Weapon
-	if *i.Subclass == 1 || *i.Subclass == 5 || *i.Subclass == 6 || *i.Subclass == 8 || *i.Subclass == 10 {
-		typeModifier = 0.65
+	if *i.Subclass == 1 || *i.Subclass == 5 || *i.Subclass == 6 || *i.Subclass == 8 || *i.Subclass == 10 || *i.Subclass == 17 {
+		typeModifier = 0.95
 	}
 
 	// Ranged Weapons
 	if *i.Subclass == 2 || *i.Subclass == 3 || *i.Subclass == 16 || *i.Subclass == 18 {
-		typeModifier = 0.60
+		typeModifier = 0.75
 	}
 
 	// Wands
-	if *i.Subclass == 17 {
-		typeModifier = 0.65
+	if *i.Subclass == 19 {
+		typeModifier = 0.70
 	}
 
 	qualityModifier := 1.0
@@ -230,7 +236,7 @@ func (i Item) GetDpsModifier() (float64, error) {
 	}
 
 	if typeModifier == 0 {
-		return 0, fmt.Errorf("Item subclass is not a weapon")
+		return 0, fmt.Errorf("Item subclass is not a weapon %v", *i.Subclass)
 	}
 
 	return (qualityModifier * typeModifier), nil
@@ -247,7 +253,7 @@ func (item Item) GetDPS() (float64, error) {
 		return 0, fmt.Errorf("delay is not set")
 	}
 
-	dps := (float64(*item.MinDmg1+*item.MaxDmg1) / 2.0) / float64(*item.Delay)
+	dps := math.Round((float64(*item.MinDmg1+*item.MaxDmg1)/2.0)/float64(*item.Delay/1000)*100) / 100
 	return dps, nil
 }
 
@@ -312,10 +318,6 @@ func (d Database) GetItem(entry int) (Item, error) {
 
 	return item, nil
 }
-
-// Stat Formula scaler
-// Ceiling of ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
-// i.e)   Green Strength Helmet  (((100 * 1.1 * 1.0)^1.705) * 1)^(1/1.7095) / 1.0 = 110 Strength on item
 
 // Create a Map of stat percentages based on the current stat and how budgets are caluated
 func (item Item) GetStatPercents(spellStats []ConvItemStat) map[int]*ItemStat {
@@ -387,7 +389,10 @@ func (item *Item) GetSpells() ([]Spell, error) {
 	return spells, nil
 }
 
-func (item *Item) ScaleItem() (bool, error) {
+// Stat Formula scaler
+// Ceiling of ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
+// i.e)   Green Strength Helmet  (((100 * 1.1 * 1.0)^1.705) * 1)^(1/1.7095) / 1.0 = 110 Strength on item
+func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	var allSpellStats []ConvItemStat
 	if item.ItemLevel == nil {
 		return false, errors.New("field itemLevel is not set")
@@ -417,6 +422,35 @@ func (item *Item) ScaleItem() (bool, error) {
 	allStats := item.GetStatPercents(allSpellStats)
 	for statId, stat := range allStats {
 		log.Printf(">>>>>> StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+	}
+
+	// Scale Armor Stats
+	if *item.Class == 4 && *item.Armor > 0 {
+		preArmor := *item.Armor
+		// Handle shield subclass = 6
+		if *item.Subclass == 6 {
+			*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[1]))
+		} else {
+			*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[*item.Material]))
+		}
+
+		log.Printf("New Armor: %v scaled up from previous armor %v", *item.Armor, preArmor)
+	}
+
+	// If the item is a weapon scale the DPS
+	if *item.Class == 2 && *item.MinDmg1 > 0 {
+		predps, err := item.GetDPS()
+		if err != nil {
+			log.Printf("Failed to get DPS: %v", err)
+		}
+
+		dps, err := item.ScaleDPS(itemLevel)
+		if err != nil {
+			log.Printf("Failed to scale DPS: %v", err)
+			return false, err
+		}
+
+		log.Printf("DPS: %.1f scaled up from previous dps %v", dps, predps)
 	}
 
 	return true, nil
@@ -469,4 +503,10 @@ func (item *Item) ScaleItem() (bool, error) {
 
 	// 	statValue := values.FieldByName(fmt.Sprintf("StatValue
 
+}
+
+// Scale formula ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
+func scaleStat(itemLevel int, itemType int, itemQuality int, percOfStat float64, statModifier float64) int {
+	scaledUp := math.Pow((float64(itemLevel)*QualityModifiers[itemQuality]*InvTypeModifiers[itemType]), 1.7095) * percOfStat
+	return int(math.Ceil(math.Pow(scaledUp, 1/1.7095) / statModifier)) // normalized
 }

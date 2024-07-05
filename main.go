@@ -63,7 +63,7 @@ func main() {
 
 			// }
 
-			_, error := item.ScaleItem()
+			_, error := item.ScaleItem(320, 3)
 			if error != nil {
 				log.Printf("Failed to scale item: %v", error)
 			}
