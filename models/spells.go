@@ -291,3 +291,32 @@ func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 
 	return stats, nil
 }
+
+// This spell can be converted fully into a stat and not needed on the item
+func (s Spell) CanBeConverted() bool {
+
+	// if there are any spell effects that are not aura effects, then it can be converted
+	effects := s.GetSpellEffects()
+	for _, e := range effects {
+		if e.Effect != 0 && e.Effect != 6 {
+			return false
+		}
+	}
+
+	// Unfortunately if there are any mixed effects for auras, it is too difficult to split those so just
+	// bail out
+	auras := s.GetAuraEffects()
+	auraFlag := false
+	for _, a := range auras {
+		if a.Effect == 0 {
+			continue
+		}
+
+		if AuraEffectCanBeConv(a.Effect) {
+			auraFlag = true
+			break
+		}
+	}
+
+	return auraFlag
+}

@@ -109,11 +109,11 @@ var QualityModifiers = map[int]float64{
 }
 
 var MaterialModifiers = map[int]float64{
-	5: 5,   // Mail
-	6: 9.0, // Plate
-	7: 1.2, // Cloth
-	8: 2.2, // Leather
-	1: 20,  // Shield
+	1: 1.2,  // Cloth
+	2: 2.2,  // Leather
+	3: 4.75, // Mail
+	4: 9.0,  // Plate
+	6: 20.0, // Plate
 }
 
 var StatModifiers = map[int]float64{
@@ -422,19 +422,18 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	allStats := item.GetStatPercents(allSpellStats)
 	for statId, stat := range allStats {
 		log.Printf(">>>>>> StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+		stat.Value = scaleStat(itemLevel, *item.InventoryType, itemQuality, stat.Percent, StatModifiers[statId])
+		log.Printf(">>>>>> Scaled StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
 	}
+
+	item.addStats(allStats)
 
 	// Scale Armor Stats
 	if *item.Class == 4 && *item.Armor > 0 {
 		preArmor := *item.Armor
-		// Handle shield subclass = 6
-		if *item.Subclass == 6 {
-			*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[1]))
-		} else {
-			*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[*item.Material]))
-		}
+		*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[*item.Subclass]))
 
-		log.Printf("New Armor: %v scaled up from previous armor %v", *item.Armor, preArmor)
+		log.Printf("New Armor: %v scaled up from previous armor %v material is %v", *item.Armor, preArmor, *item.Material)
 	}
 
 	// If the item is a weapon scale the DPS
@@ -449,64 +448,130 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 			log.Printf("Failed to scale DPS: %v", err)
 			return false, err
 		}
-
 		log.Printf("DPS: %.1f scaled up from previous dps %v", dps, predps)
 	}
 
+	item.CleanSpells()
+
 	return true, nil
 
-	// // Calculate the Armor or Weapon modifier
-	// var modifier float64
-	// if *item.Class == 4 {
-	// 	modifier = ArmorModifiers[*item.InventoryType]
-	// } else {
-	// 	modifier = WeaponModifiers[*item.InventoryType]
-	// }
+}
 
-	// // Calculate the Quality Modifier
-	// qualityModifier := QualityModifiers[*item.Quality]
+func (item *Item) emptyStats() {
+	*item.StatType1 = 0
+	*item.StatValue1 = 0
+	*item.StatType2 = 0
+	*item.StatValue2 = 0
+	*item.StatType3 = 0
+	*item.StatValue3 = 0
+	*item.StatType4 = 0
+	*item.StatValue4 = 0
+	*item.StatType5 = 0
+	*item.StatValue5 = 0
+	*item.StatType6 = 0
+	*item.StatValue6 = 0
+	*item.StatType7 = 0
+	*item.StatValue7 = 0
+	*item.StatType8 = 0
+	*item.StatValue8 = 0
+	*item.StatType9 = 0
+	*item.StatValue9 = 0
+	*item.StatType10 = 0
+	*item.StatValue10 = 0
+}
 
-	// // Calculate the Stat Modifier
-	// statModifier := StatModifiers[primaryStat]
+func (item *Item) addStats(stats map[int]*ItemStat) {
+	item.emptyStats()
+	i := 1
 
-	// // Calculate the budget for the item
-	// budget := math.Pow(float64(*item.ItemLevel)*qualityModifier*modifier, 1.7095)
+	// itemValue := reflect.ValueOf(item).Elem() // Get value of underlying struct
 
-	// // Calculate the percentage of stats
-	// percent := math.Pow(budget, 1/1.7095) / statModifier
+	for statId, stat := range stats {
+		if i > 10 {
+			break
+		}
 
-	// // Calculate the budget for the primary stat
-	// primaryBudget := percent * float64(primaryVal)
+		statTypeField := fmt.Sprintf("StatType%d", i)
+		statValueField := fmt.Sprintf("StatValue%d", i)
 
-	// // Calculate the budget for the other stats
-	// otherBudget := percent - primaryBudget
+		// Update the item with new stats from scaling
+		item.UpdateField(statTypeField, statId)
+		item.UpdateField(statValueField, stat.Value)
 
-	// // Calculate the budget for each stat
-	// statBudget := otherBudget / float64(*item.StatsCount)
+		// Get the stats for logging purposes
+		tmpType, _ := item.GetField(statTypeField)
+		tmpStat, _ := item.GetField(statValueField)
+		log.Printf("Updated %s to %v, %s to %v", statTypeField, tmpType, statValueField, tmpStat)
 
-	// // Calculate the adjusted value for the primary stat
-	// adjPrimaryVal := primaryBudget * statModifier
+		i++
+	}
+}
 
-	// // Calculate the adjusted value for the other stats
-	// adjStatVal := statBudget * statModifier
+func (item *Item) CleanSpells() {
+	spells, err := item.GetSpells()
+	if err != nil {
+		log.Printf("Failed to get spells for item: %v", err)
+		return
+	}
 
-	// // Update the primary stat value
-	// primaryVal = int(adjPrimaryVal)
+	for i := 0; i < len(spells); i++ {
+		if !spells[i].CanBeConverted() {
+			continue
+		}
 
-	// // Update the other stats
-	// values := reflect.ValueOf(item)
-	// for i := 1; i < 11; i++ {
-	// 	statType := values.FieldByName(fmt.Sprintf("StatType%v", i)).Elem().Int()
-	// 	if statType == primaryStat {
-	// 		continue
-	// 	}
+		_, found := reflect.TypeOf(item).Elem().FieldByName(fmt.Sprintf("SpellId%v", i+1))
+		if !found {
+			log.Printf("Failed to find field SpellId%v", i+1)
+			continue
+		}
 
-	// 	statValue := values.FieldByName(fmt.Sprintf("StatValue
+		item.UpdateField(fmt.Sprintf("SpellId%v", i+1), 0)
+		log.Printf("Removed spell %v from item", spells[i].Name)
+	}
+}
 
+func (item *Item) GetField(fieldName string) (int, error) {
+	itemValue := reflect.ValueOf(item).Elem()
+	field := itemValue.FieldByName(fieldName)
+	if !field.IsValid() {
+		return 0, fmt.Errorf("failed to find field %s", fieldName)
+	}
+
+	switch field.Kind() {
+	case reflect.Ptr:
+		if field.IsNil() {
+			return 0, fmt.Errorf("field %s is nil", fieldName)
+		}
+		return int(field.Elem().Int()), nil
+	default:
+		return 0, fmt.Errorf("field %s is not a pointer", fieldName)
+	}
+}
+
+// Updates a dynamic field on the item struct useful for stat replacements or spells
+func (item *Item) UpdateField(fieldName string, value int) {
+	itemValue := reflect.ValueOf(item).Elem()
+	field := itemValue.FieldByName(fieldName)
+	if !field.IsValid() {
+		log.Printf("failed to find field %s", fieldName)
+		return
+	}
+
+	switch field.Kind() {
+	case reflect.Ptr:
+		newValue := reflect.ValueOf(&value)
+		field.Set(newValue)
+		log.Printf("Successfully set %s to %d", fieldName, value)
+	default:
+		log.Printf("field %s is not a pointer", fieldName)
+	}
 }
 
 // Scale formula ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
 func scaleStat(itemLevel int, itemType int, itemQuality int, percOfStat float64, statModifier float64) int {
 	scaledUp := math.Pow((float64(itemLevel)*QualityModifiers[itemQuality]*InvTypeModifiers[itemType]), 1.7095) * percOfStat
-	return int(math.Ceil(math.Pow(scaledUp, 1/1.7095) / statModifier)) // normalized
+
+	// leaving modifier off for now but not changing signature in case I need to add it back
+	_ = statModifier
+	return int(math.Ceil(math.Pow(scaledUp, 1/1.7095))) // normalized
 }
