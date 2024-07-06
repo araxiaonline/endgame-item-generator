@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/araxiaonline/endgame-item-generator/utils"
 	"github.com/thoas/go-funk"
@@ -262,6 +263,11 @@ func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 	}
 
 	effects := s.GetAuraEffects()
+
+	if s.ID == 9397 {
+		log.Printf("Spell: %v AuraEffect1: %v AuraEffect2: %v AuraEffect3: %v", s.Name, s.EffectAura1, s.EffectAura2, s.EffectAura3)
+
+	}
 	var seen []int
 	for _, e := range effects {
 		if !AuraEffectCanBeConv(e.Effect) {
@@ -285,7 +291,24 @@ func (s Spell) ConvertToStats() ([]ConvItemStat, error) {
 		stats = append(stats, ConvItemStat{
 			StatType:  statId,
 			StatValue: e.CalculatedMax,
-			Budget:    int(math.Ceil(float64(e.CalculatedMax) * statMod)),
+			Budget:    int(math.Abs(math.Ceil(float64(e.CalculatedMax) * statMod))),
+		})
+	}
+
+	// Handle special stat case where 189 is catch all for crit, dodge, parry, hit, haste, expertise
+	if s.Effect1 != 0 && s.Effect1 == 6 && (s.EffectAura1 == 189 || s.EffectAura1 == 123) {
+		log.Printf("Special case for spell aura effect: %v", s.Description)
+		statId := parseStatDesc(s.Description)
+		if statId == 0 {
+			log.Printf("Could not determine stat for spell aura effect description: %v", s.Name)
+		}
+
+		calced := calcMaxValue(s.EffectBasePoints1, s.EffectDieSides1)
+		log.Printf("StatId: %v Calced: %v", statId, calced)
+		stats = append(stats, ConvItemStat{
+			StatType:  statId,
+			StatValue: calced,
+			Budget:    int(math.Abs(math.Ceil(float64(calced) * float64(StatModifiers[statId])))),
 		})
 	}
 
@@ -313,10 +336,108 @@ func (s Spell) CanBeConverted() bool {
 		}
 
 		if AuraEffectCanBeConv(a.Effect) {
-			auraFlag = true
-			break
+			return true
 		}
 	}
 
 	return auraFlag
+}
+
+// based on the description determine the stat to
+func parseStatDesc(desc string) int {
+	if strings.Contains(desc, "critical strike") {
+		return 32
+	}
+
+	if strings.Contains(desc, "dodge") {
+		return 13
+	}
+
+	if strings.Contains(desc, "parry") {
+		return 14
+	}
+
+	if strings.Contains(desc, "hit rating") {
+		return 31
+	}
+
+	if strings.Contains(desc, "haste rating") {
+		return 36
+	}
+
+	if strings.Contains(desc, "expertise rating") {
+		return 37
+	}
+
+	if strings.Contains(desc, "defense rating") {
+		return 12
+	}
+
+	if strings.Contains(desc, "block rating") {
+		return 15
+	}
+
+	if strings.Contains(desc, "armor penetration") {
+		return 44
+	}
+
+	if strings.Contains(desc, "spell penetration") {
+		return 47
+	}
+
+	return 0
+}
+
+// Scales a spell effect
+// An example of this might on hit do $s1 nature damage over $d seconds.  We would just scale the $s1 value
+// based on the formula below. This assumes that Blizzard has already balanced the spell bonus against the
+// stats on the item level and quality.  This is a big assumption as the stats are not penalized
+// from having the extra damage.  This could really create some unique sought after weapons that exploit this.
+// modified ratio ((s1 / existing iLevel) * newIlevel) * (0.20 Rare or 0.30 Epic or 0.4 for Legendary).
+func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) error {
+
+	qualModifier := map[int]float64{
+		3: 0.20,
+		4: 0.30,
+		5: 0.40,
+	}
+
+	// direct damage types
+	dd := [...]int{2, 9, 10}
+
+	// Causes direct damage
+	if s.Effect1 != 0 && funk.Contains(dd, s.Effect1) {
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+	}
+	if s.Effect2 != 0 && funk.Contains(dd, s.Effect1) {
+		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+	}
+
+	// Restores a Power / Mana
+	if s.Effect1 != 0 && s.Effect1 == 30 {
+		// skip anyhing else that is not mana as they are flat values
+		if strings.Contains(s.Description, "Mana") {
+			s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 0.75)
+		}
+	}
+
+	// Scales a stat buff
+	if s.Effect1 != 0 && s.Effect1 == 35 {
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+	}
+	if s.Effect1 != 0 && s.Effect2 == 35 {
+		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+	}
+
+	// Handle special aura effects
+	if s.EffectAura1 != 0 && s.EffectAura1 == 3 && s.Effect1 == 6 {
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+	}
+
+	// Damage Shield Increase Scale due to HP curve
+	if s.EffectAura1 != 0 && s.EffectAura1 == 15 && s.Effect1 == 6 {
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 1.50)
+	}
+
+	return nil
 }

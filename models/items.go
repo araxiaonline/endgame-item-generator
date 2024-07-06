@@ -203,18 +203,18 @@ func (i Item) GetDpsModifier() (float64, error) {
 
 	typeModifier := 0.0
 	// Is a One-Handed Weapon
-	if *i.Subclass == 0 || *i.Subclass == 4 || *i.Subclass == 13 || *i.Subclass == 15 {
-		typeModifier = 0.68
+	if *i.Subclass == 0 || *i.Subclass == 4 || *i.Subclass == 13 || *i.Subclass == 15 || *i.Subclass == 7 {
+		typeModifier = 0.64
 	}
 
 	// Is a Two-Handed Weapon
 	if *i.Subclass == 1 || *i.Subclass == 5 || *i.Subclass == 6 || *i.Subclass == 8 || *i.Subclass == 10 || *i.Subclass == 17 {
-		typeModifier = 0.95
+		typeModifier = 0.80
 	}
 
 	// Ranged Weapons
 	if *i.Subclass == 2 || *i.Subclass == 3 || *i.Subclass == 16 || *i.Subclass == 18 {
-		typeModifier = 0.75
+		typeModifier = 0.70
 	}
 
 	// Wands
@@ -389,6 +389,38 @@ func (item *Item) GetSpells() ([]Spell, error) {
 	return spells, nil
 }
 
+func (item *Item) GetNonStatSpells() ([]Spell, error) {
+	nonStatSpells := []Spell{}
+	for i := 1; i < 4; i++ {
+		spellId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
+
+		if err != nil {
+			log.Printf("Failed to get spell id %v", i)
+			continue
+		}
+
+		if spellId == 0 {
+			continue
+		}
+		spell, err := DB.GetSpell(spellId)
+		if err != nil {
+			log.Printf("Failed to get spell %v", spellId)
+			continue
+		}
+
+		// Need to handle extended spell casts basically when a spell casts another spell and the base points are there
+		// instead of with the item itself.
+		// Can just create a new spell with base points, type and remove triggerspell and see what happens?
+		// For now just skip anything not in our list.
+		if spell.EffectAura1 == 42 || spell.EffectAura2 == 42 || spell.EffectAura3 == 42 {
+			continue
+		}
+
+		nonStatSpells = append(nonStatSpells, spell)
+	}
+	return nonStatSpells, nil
+}
+
 // Stat Formula scaler
 // Ceiling of ((ItemLevel * QualityModifier * ItemTypeModifier)^1.7095 * %ofStats) ^ (1/1.7095)) / StatModifier
 // i.e)   Green Strength Helmet  (((100 * 1.1 * 1.0)^1.705) * 1)^(1/1.7095) / 1.0 = 110 Strength on item
@@ -401,6 +433,9 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	if item.Quality == nil {
 		return false, errors.New("field quality is not set")
 	}
+
+	*item.ItemLevel = itemLevel
+	*item.Quality = itemQuality
 
 	// Get all the spell Stats on the item we can convert
 	spells, err := item.GetSpells()
@@ -421,12 +456,14 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 
 	allStats := item.GetStatPercents(allSpellStats)
 	for statId, stat := range allStats {
-		log.Printf(">>>>>> StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+		origValue := stat.Value
+
 		stat.Value = scaleStat(itemLevel, *item.InventoryType, itemQuality, stat.Percent, StatModifiers[statId])
-		log.Printf(">>>>>> Scaled StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
+		log.Printf(">>>>>> Scaled : StatId: %v Type: %s Orig: %v - New Value: %v Percent: %v", statId, stat.Type, origValue, stat.Value, stat.Percent)
 	}
 
 	item.addStats(allStats)
+	*item.StatsCount = len(allStats)
 
 	// Scale Armor Stats
 	if *item.Class == 4 && *item.Armor > 0 {
@@ -452,6 +489,27 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	}
 
 	item.CleanSpells()
+
+	// Item is scaled now we have to determine if there are additional spell effects that need scaled.
+	// this will be as simple as possible as the effects will just be a percentage of the item stats.
+	// This could lead to some OP weapons that will need tuned down later. But for now, we will just scale at a
+	// An example of this might on hit do $s1 nature damage over $d seconds.  We would just scale the $s1 value
+	// based on the formula below. This assumes that Blizzard has already balanced the spell bonus against the
+	// stats on the item level and quality.  This is a big assumption as the stats are not penalized
+	// from having the extra damage.  This could really create some unique sought after weapons that exploit this.
+	// modified ratio ((s1 / existing iLevel) * newIlevel) * (0.20 Rare or 0.30 Epic or 0.4 for Legendary).
+
+	otherSpells, err := item.GetNonStatSpells()
+	if err != nil {
+		log.Printf("failed to get non stat spells: %v", err)
+	}
+
+	// Spells that can not be scaled into stats must get new spells scaled and created
+	for _, spell := range otherSpells {
+		log.Printf(" --------SPELL --- Spell %v (%v) Effect %v  AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
+		spell.ScaleSpell(itemLevel, itemQuality)
+		log.Printf(" --SCALED---SPELL --- Spell %v (%v) Effect %v AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
+	}
 
 	return true, nil
 
@@ -499,14 +557,15 @@ func (item *Item) addStats(stats map[int]*ItemStat) {
 		item.UpdateField(statValueField, stat.Value)
 
 		// Get the stats for logging purposes
-		tmpType, _ := item.GetField(statTypeField)
-		tmpStat, _ := item.GetField(statValueField)
-		log.Printf("Updated %s to %v, %s to %v", statTypeField, tmpType, statValueField, tmpStat)
+		// tmpType, _ := item.GetField(statTypeField)
+		// tmpStat, _ := item.GetField(statValueField)
+		// log.Printf("Updated %s to %v, %s to %v", statTypeField, tmpType, statValueField, tmpStat)
 
 		i++
 	}
 }
 
+// Cleans up spells from the item that have been converted to stats and leaves only the ones that are not
 func (item *Item) CleanSpells() {
 	spells, err := item.GetSpells()
 	if err != nil {
@@ -514,19 +573,26 @@ func (item *Item) CleanSpells() {
 		return
 	}
 
-	for i := 0; i < len(spells); i++ {
-		if !spells[i].CanBeConverted() {
-			continue
-		}
+	if len(spells) == 0 {
+		return
+	}
 
-		_, found := reflect.TypeOf(item).Elem().FieldByName(fmt.Sprintf("SpellId%v", i+1))
-		if !found {
-			log.Printf("Failed to find field SpellId%v", i+1)
-			continue
-		}
+	for i := 1; i < 4; i++ {
+		for _, spell := range spells {
+			currentId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
+			if err != nil {
+				log.Printf("ERROR: Failed to get spell id %v err: %v", i, err)
+				continue
+			}
+			if currentId == 0 {
+				continue
+			}
 
-		item.UpdateField(fmt.Sprintf("SpellId%v", i+1), 0)
-		log.Printf("Removed spell %v from item", spells[i].Name)
+			if currentId == spell.ID {
+				item.UpdateField(fmt.Sprintf("SpellId%v", i), 0)
+				log.Printf("Removed spell %v from spellSlot: %v", spell.Name, fmt.Sprintf("SpellId%v", i))
+			}
+		}
 	}
 }
 
@@ -561,9 +627,9 @@ func (item *Item) UpdateField(fieldName string, value int) {
 	case reflect.Ptr:
 		newValue := reflect.ValueOf(&value)
 		field.Set(newValue)
-		log.Printf("Successfully set %s to %d", fieldName, value)
+		//		log.Printf("Successfully set %s to %d", fieldName, value)
 	default:
-		log.Printf("field %s is not a pointer", fieldName)
+		//		log.Printf("field %s is not a pointer", fieldName)
 	}
 }
 

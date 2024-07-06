@@ -15,15 +15,7 @@ func main() {
 	godotenv.Load()
 	models.Connect()
 
-	weapon, err := models.DB.GetItem(13982)
-	weapon.ScaleDPS(350)
-	// log.Printf("Weapon: %v-%v", *weapon.MinDmg1, *weapon.MaxDmg1)
-	// log.Printf("Weapon: %v-%v", *weapon.MinDmg2, *weapon.MaxDmg2)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	bosses, err := models.DB.GetBosses(540)
+	bosses, err := models.DB.GetBosses(229)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,6 +56,7 @@ func main() {
 			// }
 
 			_, error := item.ScaleItem(320, 3)
+			fmt.Print(ItemToSql(item, 80, 3))
 			if error != nil {
 				log.Printf("Failed to scale item: %v", error)
 			}
