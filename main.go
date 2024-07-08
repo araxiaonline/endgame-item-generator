@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io"
 	"log"
+	"os"
 
 	"github.com/araxiaonline/endgame-item-generator/models"
 	_ "github.com/go-sql-driver/mysql"
@@ -15,9 +18,18 @@ func main() {
 	godotenv.Load()
 	models.Connect()
 
+	debug := flag.Bool("debug", false, "Enable verbose logging inside generator")
+	flag.Parse()
+
+	if *debug {
+		log.SetOutput(os.Stdout)
+	} else {
+		log.SetOutput(io.Discard)
+	}
+
 	bosses, err := models.DB.GetBosses(229)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("failed to get bosses")
 	}
 
 	for _, boss := range bosses {
@@ -30,30 +42,7 @@ func main() {
 
 		for _, item := range items {
 
-			fmt.Printf("\nItem %v Entry: %v ItemLevel %v \n", item.Name, item.Entry, *item.ItemLevel)
-			// item.GetStatPercents()
-
-			// if *item.SpellId1 != 0 {
-			// 	spell, err := models.DB.GetSpell(*item.SpellId1)
-			// 	if err != nil {
-			// 		log.Printf("failed to get the spell: %v error: %v", *item.SpellId1, err)
-			// 	}
-
-			// log.Printf("Spell %v Spell Effects 1: %v 2: %v, 3: %v \n", spell.Name, spell.Effect1, spell.Effect2, spell.Effect3)
-			// log.Printf("Spell Aura 1: %v 2: %v, 3: %v \n", spell.EffectAura1, spell.EffectAura2, spell.EffectAura3)
-
-			// convStats, err := spell.ConvertToStats()
-			// if err != nil {
-			// 	log.Printf("Failed to convert spell to stats: %v", err)
-			// }
-
-			// scaleItemStats := item.GetStatPercents(convStats)
-			// for statId, stat := range scaleItemStats {
-			// 	log.Printf("StatId: %v Type: %s Value: %v Percent: %v", statId, stat.Type, stat.Value, stat.Percent)
-			// }
-			//				log.Printf("Scaled Spell Stats: %v\n", convStats)
-
-			// }
+			log.Printf("\nItem %v Entry: %v ItemLevel %v \n", item.Name, item.Entry, *item.ItemLevel)
 
 			_, error := item.ScaleItem(320, 3)
 			fmt.Print(ItemToSql(item, 80, 3))
@@ -65,18 +54,9 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			// fmt.Println(stat, value)
 
 		}
 	}
 
-	// iLevel := 219
-	// qual := 3
-	// delay := 2.60
-	// sub := 0
-	// myItem := models.Item{Name: "Hypnotic Blade", ItemLevel: &iLevel, Quality: &qual, Delay: &delay, Subclass: &sub}
-	// dps, err := myItem.ScaleDPS()
-
-	// log.Printf("Item %s DPS: %.1f", myItem.Name, dps)
 	defer models.DB.Close()
 }

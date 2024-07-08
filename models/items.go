@@ -71,6 +71,14 @@ type Item struct {
 	Spells         []Spell
 }
 
+// Use for storing item stats for all stats that will be scaled.
+type ItemStat struct {
+	Value    int
+	Percent  float64
+	Type     string
+	AdjValue float64
+}
+
 var InvTypeModifiers = map[int]float64{
 	1:  0.813, // Head
 	2:  1.0,   // Neck
@@ -161,13 +169,6 @@ var StatModifiers = map[int]float64{
 	46: 1.0,  // ITEM_MOD_HEALTH_REGEN
 	47: 2.0,  // ITEM_MOD_SPELL_PENETRATION
 	48: 0.65, // ITEM_MOD_BLOCK_VALUE
-}
-
-type ItemStat struct {
-	Value    int
-	Percent  float64
-	Type     string
-	AdjValue float64
 }
 
 func (item Item) GetPrimaryStat() (int, int, error) {
@@ -488,7 +489,7 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 		log.Printf("DPS: %.1f scaled up from previous dps %v", dps, predps)
 	}
 
-	item.CleanSpells()
+	item.cleanSpells()
 
 	// Item is scaled now we have to determine if there are additional spell effects that need scaled.
 	// this will be as simple as possible as the effects will just be a percentage of the item stats.
@@ -513,87 +514,6 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 
 	return true, nil
 
-}
-
-func (item *Item) emptyStats() {
-	*item.StatType1 = 0
-	*item.StatValue1 = 0
-	*item.StatType2 = 0
-	*item.StatValue2 = 0
-	*item.StatType3 = 0
-	*item.StatValue3 = 0
-	*item.StatType4 = 0
-	*item.StatValue4 = 0
-	*item.StatType5 = 0
-	*item.StatValue5 = 0
-	*item.StatType6 = 0
-	*item.StatValue6 = 0
-	*item.StatType7 = 0
-	*item.StatValue7 = 0
-	*item.StatType8 = 0
-	*item.StatValue8 = 0
-	*item.StatType9 = 0
-	*item.StatValue9 = 0
-	*item.StatType10 = 0
-	*item.StatValue10 = 0
-}
-
-func (item *Item) addStats(stats map[int]*ItemStat) {
-	item.emptyStats()
-	i := 1
-
-	// itemValue := reflect.ValueOf(item).Elem() // Get value of underlying struct
-
-	for statId, stat := range stats {
-		if i > 10 {
-			break
-		}
-
-		statTypeField := fmt.Sprintf("StatType%d", i)
-		statValueField := fmt.Sprintf("StatValue%d", i)
-
-		// Update the item with new stats from scaling
-		item.UpdateField(statTypeField, statId)
-		item.UpdateField(statValueField, stat.Value)
-
-		// Get the stats for logging purposes
-		// tmpType, _ := item.GetField(statTypeField)
-		// tmpStat, _ := item.GetField(statValueField)
-		// log.Printf("Updated %s to %v, %s to %v", statTypeField, tmpType, statValueField, tmpStat)
-
-		i++
-	}
-}
-
-// Cleans up spells from the item that have been converted to stats and leaves only the ones that are not
-func (item *Item) CleanSpells() {
-	spells, err := item.GetSpells()
-	if err != nil {
-		log.Printf("Failed to get spells for item: %v", err)
-		return
-	}
-
-	if len(spells) == 0 {
-		return
-	}
-
-	for i := 1; i < 4; i++ {
-		for _, spell := range spells {
-			currentId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
-			if err != nil {
-				log.Printf("ERROR: Failed to get spell id %v err: %v", i, err)
-				continue
-			}
-			if currentId == 0 {
-				continue
-			}
-
-			if currentId == spell.ID {
-				item.UpdateField(fmt.Sprintf("SpellId%v", i), 0)
-				log.Printf("Removed spell %v from spellSlot: %v", spell.Name, fmt.Sprintf("SpellId%v", i))
-			}
-		}
-	}
 }
 
 func (item *Item) GetField(fieldName string) (int, error) {
@@ -630,6 +550,87 @@ func (item *Item) UpdateField(fieldName string, value int) {
 		//		log.Printf("Successfully set %s to %d", fieldName, value)
 	default:
 		//		log.Printf("field %s is not a pointer", fieldName)
+	}
+}
+
+func (item *Item) emptyStats() {
+	*item.StatType1 = 0
+	*item.StatValue1 = 0
+	*item.StatType2 = 0
+	*item.StatValue2 = 0
+	*item.StatType3 = 0
+	*item.StatValue3 = 0
+	*item.StatType4 = 0
+	*item.StatValue4 = 0
+	*item.StatType5 = 0
+	*item.StatValue5 = 0
+	*item.StatType6 = 0
+	*item.StatValue6 = 0
+	*item.StatType7 = 0
+	*item.StatValue7 = 0
+	*item.StatType8 = 0
+	*item.StatValue8 = 0
+	*item.StatType9 = 0
+	*item.StatValue9 = 0
+	*item.StatType10 = 0
+	*item.StatValue10 = 0
+}
+
+// Cleans up spells from the item that have been converted to stats and leaves only the ones that are not
+func (item *Item) cleanSpells() {
+	spells, err := item.GetSpells()
+	if err != nil {
+		log.Printf("Failed to get spells for item: %v", err)
+		return
+	}
+
+	if len(spells) == 0 {
+		return
+	}
+
+	for i := 1; i < 4; i++ {
+		for _, spell := range spells {
+			currentId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
+			if err != nil {
+				log.Printf("ERROR: Failed to get spell id %v err: %v", i, err)
+				continue
+			}
+			if currentId == 0 {
+				continue
+			}
+
+			if currentId == spell.ID {
+				item.UpdateField(fmt.Sprintf("SpellId%v", i), 0)
+				log.Printf("Removed spell %v from spellSlot: %v", spell.Name, fmt.Sprintf("SpellId%v", i))
+			}
+		}
+	}
+}
+
+func (item *Item) addStats(stats map[int]*ItemStat) {
+	item.emptyStats()
+	i := 1
+
+	// itemValue := reflect.ValueOf(item).Elem() // Get value of underlying struct
+
+	for statId, stat := range stats {
+		if i > 10 {
+			break
+		}
+
+		statTypeField := fmt.Sprintf("StatType%d", i)
+		statValueField := fmt.Sprintf("StatValue%d", i)
+
+		// Update the item with new stats from scaling
+		item.UpdateField(statTypeField, statId)
+		item.UpdateField(statValueField, stat.Value)
+
+		// Get the stats for logging purposes
+		// tmpType, _ := item.GetField(statTypeField)
+		// tmpStat, _ := item.GetField(statValueField)
+		// log.Printf("Updated %s to %v, %s to %v", statTypeField, tmpType, statValueField, tmpStat)
+
+		i++
 	}
 }
 

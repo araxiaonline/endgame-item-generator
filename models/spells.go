@@ -388,13 +388,14 @@ func parseStatDesc(desc string) int {
 	return 0
 }
 
-// Scales a spell effect
+// Scales a spell effect, means creating a new spell with the same effect but scaled to a new item level, then passing
+// back the new spellId, In order to be predictable I will use 30000000 for rare, 31000000 for epic, 32000000 for legendary
 // An example of this might on hit do $s1 nature damage over $d seconds.  We would just scale the $s1 value
 // based on the formula below. This assumes that Blizzard has already balanced the spell bonus against the
 // stats on the item level and quality.  This is a big assumption as the stats are not penalized
 // from having the extra damage.  This could really create some unique sought after weapons that exploit this.
 // modified ratio ((s1 / existing iLevel) * newIlevel) * (0.20 Rare or 0.30 Epic or 0.4 for Legendary).
-func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) error {
+func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) (int, error) {
 
 	qualModifier := map[int]float64{
 		3: 0.20,
@@ -402,15 +403,26 @@ func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) error {
 		5: 0.40,
 	}
 
+	idBump := 30000000
+	if itemQuality == 4 {
+		idBump = 31000000
+	}
+	if itemQuality == 5 {
+		idBump = 32000000
+	}
+
 	// direct damage types
 	dd := [...]int{2, 9, 10}
 
+	didScale := false
 	// Causes direct damage
 	if s.Effect1 != 0 && funk.Contains(dd, s.Effect1) {
 		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		didScale = true
 	}
 	if s.Effect2 != 0 && funk.Contains(dd, s.Effect1) {
 		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		didScale = true
 	}
 
 	// Restores a Power / Mana
@@ -418,26 +430,34 @@ func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) error {
 		// skip anyhing else that is not mana as they are flat values
 		if strings.Contains(s.Description, "Mana") {
 			s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 0.75)
+			didScale = true
 		}
 	}
 
 	// Scales a stat buff
 	if s.Effect1 != 0 && s.Effect1 == 35 {
 		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		didScale = true
 	}
 	if s.Effect1 != 0 && s.Effect2 == 35 {
 		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		didScale = true
 	}
 
 	// Handle special aura effects
 	if s.EffectAura1 != 0 && s.EffectAura1 == 3 && s.Effect1 == 6 {
 		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		didScale = true
 	}
 
 	// Damage Shield Increase Scale due to HP curve
 	if s.EffectAura1 != 0 && s.EffectAura1 == 15 && s.Effect1 == 6 {
 		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 1.50)
+		didScale = true
 	}
 
-	return nil
+	if !didScale {
+		return 0, fmt.Errorf("did not qualify to be scaled in ScaleSpell %v (%v)", s.Name, s.ID)
+	}
+	return idBump + s.ID, nil
 }
