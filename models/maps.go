@@ -9,7 +9,9 @@ type Dungeon struct {
 	ExpansionId int `db:"ExpansionId"`
 }
 
+// dungeon instance id : avg level
 var dungeons = map[int]int{
+
 	// Classic WoW dungeons
 	389: 18, // Ragefire Chasm
 	43:  25, // Wailing Caverns
@@ -28,6 +30,7 @@ var dungeons = map[int]int{
 	209: 54, // Zul'Farrak
 	349: 55, // Maraudon
 	269: 57, // Temple of Atal'Hakkar
+
 	// The Burning Crusade dungeons
 	540: 62, // Hellfire Citadel: Hellfire Ramparts
 	542: 63, // Hellfire Citadel: The Blood Furnace
@@ -44,6 +47,7 @@ var dungeons = map[int]int{
 	554: 70, // Tempest Keep: The Mechanar
 	552: 70, // Tempest Keep: The Arcatraz
 	585: 70, // Magisters' Terrace
+
 	// Wrath of the Lich King dungeons
 	70:  72, // Utgarde Keep
 	129: 74, // Azjol-Nerub
@@ -67,9 +71,9 @@ func (db Database) GetDungeons(expansionId int) ([]Dungeon, error) {
 	dungeons := []Dungeon{}
 
 	sql := `
-	SELECT ID as Id, MapName_Lang_enUS as Name, ExpansionID as ExpansionId 
-	FROM map_dbc 
-	WHERE InstanceType = 1 AND Name NOT LIKE '%unused%';
+		SELECT ID as Id, MapName_Lang_enUS as Name, ExpansionID as ExpansionId 
+		FROM map_dbc 
+		WHERE InstanceType = 1 AND Name NOT LIKE '%unused%';
 	`
 	var err error
 	if expansionId != -1 {
@@ -84,11 +88,4 @@ func (db Database) GetDungeons(expansionId int) ([]Dungeon, error) {
 	}
 
 	return dungeons, nil
-}
-
-func addLevels(dungeons []Dungeon) {
-	for _, dungeon := range dungeons {
-
-		dungeon.Level = 60
-	}
 }
