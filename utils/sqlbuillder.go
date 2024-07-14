@@ -7,7 +7,7 @@ func GetItemFields(prefix string) string {
 	}
 
 	return `	
-	` + pre + `entry, ` + pre + `name, displayid,
+	` + pre + `entry, ` + pre + `name, ` + pre + `displayid,
 	quality, ItemLevel, class, subclass, inventoryType,
 	allowableClass, allowableRace,
 	armor,material,
