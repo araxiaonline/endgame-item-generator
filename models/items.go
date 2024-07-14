@@ -378,6 +378,10 @@ func (item *Item) GetSpells() ([]Spell, error) {
 			continue
 		}
 
+		if spellId == -1 {
+			continue
+		}
+
 		spell, err := DB.GetSpell(int(spellId))
 		if err != nil {
 			log.Printf("failed to get the spell: %v error: %v", spellId, err)
@@ -417,6 +421,7 @@ func (item *Item) GetNonStatSpells() ([]Spell, error) {
 			continue
 		}
 
+		spell.ItemSpellSlot = i
 		nonStatSpells = append(nonStatSpells, spell)
 	}
 	return nonStatSpells, nil
@@ -435,6 +440,9 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 		return false, errors.New("field quality is not set")
 	}
 
+	log.Printf("Scaling item %v %v to item level %v and quality %v", item.Name, item.Entry, itemLevel, itemQuality)
+
+	fromItemLevel := *item.ItemLevel
 	*item.ItemLevel = itemLevel
 	*item.Quality = itemQuality
 
@@ -446,10 +454,17 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	}
 
 	for i := 0; i < len(spells); i++ {
+
+		log.Printf("Spell %v (%v) Effect %v AuraEffect %v Spell Desc: %v basePoints %v", spells[i].Name, spells[i].ID, spells[i].Effect1, spells[i].EffectAura1, spells[i].Description, spells[i].EffectBasePoints1)
+
 		convStats, err := spells[i].ConvertToStats()
 		if err != nil {
 			log.Printf("Failed to convert spell to stats: %v for spell %v", err, spells[i].Name)
 			continue
+		}
+
+		if len(convStats) != 0 {
+			item.UpdateField(fmt.Sprintf("SpellId%v", i+1), 0)
 		}
 
 		allSpellStats = append(allSpellStats, convStats...)
@@ -460,6 +475,7 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 		origValue := stat.Value
 
 		stat.Value = scaleStat(itemLevel, *item.InventoryType, itemQuality, stat.Percent, StatModifiers[statId])
+
 		log.Printf(">>>>>> Scaled : StatId: %v Type: %s Orig: %v - New Value: %v Percent: %v", statId, stat.Type, origValue, stat.Value, stat.Percent)
 	}
 
@@ -505,10 +521,26 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 		log.Printf("failed to get non stat spells: %v", err)
 	}
 
+	log.Printf("\n\n\n -------------------- COUNT OF other spells %v \n\n", len(otherSpells))
+
+	item.Spells = []Spell{}
 	// Spells that can not be scaled into stats must get new spells scaled and created
 	for _, spell := range otherSpells {
-		log.Printf(" --------SPELL --- Spell %v (%v) Effect %v  AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
-		spell.ScaleSpell(itemLevel, itemQuality)
+		log.Printf(" --^^^^^^--------SPELL --- Spell %v (%v) Effect %v  AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
+		newId, err := spell.ScaleSpell(fromItemLevel, itemLevel, itemQuality)
+		if err != nil {
+			log.Printf("Failed to scale spell: %v, Spell %v", err, spell.ID)
+			continue
+		}
+
+		if newId == 0 {
+			log.Printf("Failed to scale spell: %v, Spell %v", err, spell.ID)
+			continue
+		}
+
+		item.UpdateField(fmt.Sprintf("SpellId%v", spell.ItemSpellSlot), newId)
+		item.Spells = append(item.Spells, spell)
+
 		log.Printf(" --SCALED---SPELL --- Spell %v (%v) Effect %v AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
 	}
 
@@ -547,9 +579,7 @@ func (item *Item) UpdateField(fieldName string, value int) {
 	case reflect.Ptr:
 		newValue := reflect.ValueOf(&value)
 		field.Set(newValue)
-		//		log.Printf("Successfully set %s to %d", fieldName, value)
 	default:
-		//		log.Printf("field %s is not a pointer", fieldName)
 	}
 }
 
@@ -578,32 +608,32 @@ func (item *Item) emptyStats() {
 
 // Cleans up spells from the item that have been converted to stats and leaves only the ones that are not
 func (item *Item) cleanSpells() {
-	spells, err := item.GetSpells()
-	if err != nil {
-		log.Printf("Failed to get spells for item: %v", err)
-		return
-	}
+	for i := 1; i < 3; i++ {
+		currentId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
 
-	if len(spells) == 0 {
-		return
-	}
-
-	for i := 1; i < 4; i++ {
-		for _, spell := range spells {
-			currentId, err := item.GetField(fmt.Sprintf("SpellId%v", i))
-			if err != nil {
-				log.Printf("ERROR: Failed to get spell id %v err: %v", i, err)
-				continue
-			}
-			if currentId == 0 {
-				continue
-			}
-
-			if currentId == spell.ID {
-				item.UpdateField(fmt.Sprintf("SpellId%v", i), 0)
-				log.Printf("Removed spell %v from spellSlot: %v", spell.Name, fmt.Sprintf("SpellId%v", i))
-			}
+		log.Printf("Checking spell id %v - value %v", i, currentId)
+		if err != nil {
+			log.Printf("ERROR: Failed to get spell id %v err: %v", i, err)
+			continue
 		}
+
+		// if there no spellId set then check the next one if it is set move it and clear it
+		if currentId == 0 {
+			nextSpellId, err := item.GetField(fmt.Sprintf("SpellId%v", i+1))
+			if err != nil {
+				log.Printf("ERROR: Failed to get spell id %v err: %v", i+1, err)
+			}
+
+			if nextSpellId != 0 {
+				item.UpdateField(fmt.Sprintf("SpellId%v", i), nextSpellId)
+				item.UpdateField(fmt.Sprintf("SpellId%v", i+1), 0)
+				log.Printf("Moved spell %v to %v to replace removed spell", nextSpellId, i)
+				continue
+			}
+
+			continue
+		}
+
 	}
 }
 
@@ -620,6 +650,27 @@ func (item *Item) addStats(stats map[int]*ItemStat) {
 
 		statTypeField := fmt.Sprintf("StatType%d", i)
 		statValueField := fmt.Sprintf("StatValue%d", i)
+
+		// MP5 adjustment
+		if statId == 43 {
+			stat.Value = int(math.Round(float64(stat.Value) * 0.5))
+		}
+
+		if statId == 12 {
+			stat.Value = int(math.Round(float64(stat.Value) * 0.5))
+		}
+
+		if statId == 12 {
+			stat.Value = int(math.Round(float64(stat.Value) * 0.75))
+		}
+
+		if statId == 13 {
+			stat.Value = int(math.Round(float64(stat.Value) * 0.65))
+		}
+
+		if statId == 31 {
+			stat.Value = int(math.Round(float64(stat.Value) * 0.55))
+		}
 
 		// Update the item with new stats from scaling
 		item.UpdateField(statTypeField, statId)

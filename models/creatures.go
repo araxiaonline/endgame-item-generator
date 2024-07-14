@@ -60,7 +60,6 @@ func (db Database) GetBossLoot(bossId int) ([]Item, error) {
 	entry in
 		(SELECT item from acore_world.creature_loot_template where entry = ? and GroupId != 0 and Reference = 0)
 	and Quality > 2
-	and StatsCount > 0
 	`
 
 	udb := db.client.Unsafe()

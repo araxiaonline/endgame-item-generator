@@ -119,6 +119,8 @@ type Spell struct {
 	EffectBonusMultiplier1    int    `db:"EffectBonusMultiplier_1"`
 	EffectBonusMultiplier2    int    `db:"EffectBonusMultiplier_2"`
 	EffectBonusMultiplier3    int    `db:"EffectBonusMultiplier_3"`
+	ItemSpellSlot             int
+	Scaled                    bool
 }
 
 func (db Database) GetSpell(id int) (Spell, error) {
@@ -395,12 +397,12 @@ func parseStatDesc(desc string) int {
 // stats on the item level and quality.  This is a big assumption as the stats are not penalized
 // from having the extra damage.  This could really create some unique sought after weapons that exploit this.
 // modified ratio ((s1 / existing iLevel) * newIlevel) * (0.20 Rare or 0.30 Epic or 0.4 for Legendary).
-func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) (int, error) {
-
+func (s *Spell) ScaleSpell(fromItemLevel int, itemLevel int, itemQuality int) (int, error) {
+	s.Scaled = false
 	qualModifier := map[int]float64{
-		3: 0.20,
-		4: 0.30,
-		5: 0.40,
+		3: 1.20,
+		4: 1.30,
+		5: 1.40,
 	}
 
 	idBump := 30000000
@@ -417,47 +419,48 @@ func (s *Spell) ScaleSpell(itemLevel int, itemQuality int) (int, error) {
 	didScale := false
 	// Causes direct damage
 	if s.Effect1 != 0 && funk.Contains(dd, s.Effect1) {
-		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality] * 2.5)
 		didScale = true
 	}
 	if s.Effect2 != 0 && funk.Contains(dd, s.Effect1) {
-		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality] * 2.5)
 		didScale = true
 	}
 
 	// Restores a Power / Mana
 	if s.Effect1 != 0 && s.Effect1 == 30 {
 		// skip anyhing else that is not mana as they are flat values
-		if strings.Contains(s.Description, "Mana") {
-			s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 0.75)
+		if strings.Contains(s.Description, "Mana") || strings.Contains(s.Description, "mana") {
+			s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality])
 			didScale = true
 		}
 	}
 
 	// Scales a stat buff
 	if s.Effect1 != 0 && s.Effect1 == 35 {
-		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality])
 		didScale = true
 	}
 	if s.Effect1 != 0 && s.Effect2 == 35 {
-		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		s.EffectBasePoints2 = int(float64(s.EffectBasePoints2) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality])
 		didScale = true
 	}
 
 	// Handle special aura effects
 	if s.EffectAura1 != 0 && s.EffectAura1 == 3 && s.Effect1 == 6 {
-		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality])
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality] * 2)
 		didScale = true
 	}
 
 	// Damage Shield Increase Scale due to HP curve
 	if s.EffectAura1 != 0 && s.EffectAura1 == 15 && s.Effect1 == 6 {
-		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(s.SpellLevel) * float64(itemLevel) * qualModifier[itemQuality] * 1.50)
+		s.EffectBasePoints1 = int(float64(s.EffectBasePoints1) / float64(fromItemLevel) * float64(itemLevel) * qualModifier[itemQuality] * 1.50)
 		didScale = true
 	}
 
 	if !didScale {
 		return 0, fmt.Errorf("did not qualify to be scaled in ScaleSpell %v (%v)", s.Name, s.ID)
 	}
+	s.Scaled = true
 	return idBump + s.ID, nil
 }

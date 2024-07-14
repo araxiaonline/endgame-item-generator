@@ -1,6 +1,10 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/araxiaonline/endgame-item-generator/utils"
+)
 
 type Dungeon struct {
 	Id          int    `db:"Id"`
@@ -10,7 +14,7 @@ type Dungeon struct {
 }
 
 // dungeon instance id : avg level
-var dungeons = map[int]int{
+var dungeonLevels = map[int]int{
 
 	// Classic WoW dungeons
 	389: 18, // Ragefire Chasm
@@ -23,44 +27,47 @@ var dungeons = map[int]int{
 	47:  40, // Razorfen Kraul
 	189: 45, // Scarlet Monastery (Graveyard)
 	289: 60, // Scholomance
+	109: 60, // Sunken Temple
+	129: 33, // Razorfen Downs
+	70:  40, // Uldaman
 	329: 60, // Stratholme
 	229: 60, // Blackrock Spire (Lower)
 	230: 60, // Blackrock Spire (Upper)
 	429: 60, // Dire Maul
-	209: 54, // Zul'Farrak
+	209: 50, // Zul'Farrak
 	349: 55, // Maraudon
 	269: 57, // Temple of Atal'Hakkar
 
 	// The Burning Crusade dungeons
-	540: 62, // Hellfire Citadel: Hellfire Ramparts
-	542: 63, // Hellfire Citadel: The Blood Furnace
-	547: 64, // Coilfang Reservoir: The Slave Pens
+	540: 70, // Shattered Halls
+	542: 65, // Hellfire The Blood Furnace
+	543: 62, // Hellfire Ramparts
+	545: 64, // Coilfang Steamvaults
 	546: 65, // Coilfang Reservoir: The Underbog
+	547: 64, // Coilfang Reservoir: The Underbog
 	557: 66, // Auchindoun: Mana-Tombs
 	558: 67, // Auchindoun: Auchenai Crypts
-	560: 68, // Caverns of Time: Old Hillsbrad Foothills
-	556: 69, // Auchindoun: Sethekk Halls
-	545: 70, // Coilfang Reservoir: The Steamvault
+	556: 70, // Auchindoun: Sethekk Halls
 	555: 70, // Auchindoun: Shadow Labyrinth
-	543: 70, // Hellfire Citadel: The Shattered Halls
+	560: 68, // Caverns of Time: Old Hillsbrad Foothills
 	553: 70, // Tempest Keep: The Botanica
 	554: 70, // Tempest Keep: The Mechanar
 	552: 70, // Tempest Keep: The Arcatraz
 	585: 70, // Magisters' Terrace
 
 	// Wrath of the Lich King dungeons
-	70:  72, // Utgarde Keep
-	129: 74, // Azjol-Nerub
+	574: 72, // Utgarde keep
+	575: 76, // Utgarde Pinnacle
 	619: 75, // Ahn'kahet: The Old Kingdom
 	576: 73, // The Nexus
+	595: 80, // The Culling of Stratholme
 	600: 76, // Drak'Tharon Keep
+	601: 75, // Azjol-Nerub
 	608: 77, // The Violet Hold
 	604: 78, // Gundrak
-	599: 79, // Halls of Stone
+	599: 78, // Halls of Stone
 	602: 80, // Halls of Lightning
-	578: 79, // The Oculus
-	575: 80, // Utgarde Pinnacle
-	595: 80, // The Culling of Stratholme
+	578: 78, // The Oculus
 	650: 80, // Trial of the Champion
 	632: 80, // The Forge of Souls
 	658: 80, // Pit of Saron
@@ -73,7 +80,7 @@ func (db Database) GetDungeons(expansionId int) ([]Dungeon, error) {
 	sql := `
 		SELECT ID as Id, MapName_Lang_enUS as Name, ExpansionID as ExpansionId 
 		FROM map_dbc 
-		WHERE InstanceType = 1 AND Name NOT LIKE '%unused%';
+		WHERE InstanceType = 1 AND MapName_Lang_enUS NOT LIKE '%unused%'
 	`
 	var err error
 	if expansionId != -1 {
@@ -87,5 +94,56 @@ func (db Database) GetDungeons(expansionId int) ([]Dungeon, error) {
 		return nil, fmt.Errorf("failed to get dungeons %v", err)
 	}
 
+	for i := range dungeons {
+		if level, ok := dungeonLevels[dungeons[i].Id]; ok {
+			dungeons[i].Level = level
+		}
+	}
+
 	return dungeons, nil
+}
+
+func (db Database) GetAddlDungeonDrops(instanceId int) ([]Item, error) {
+
+	var items []Item
+	sql := fmt.Sprintf(`
+	SELECT `+utils.GetItemFields("it")+`
+from
+    acore_world.map_dbc m
+    join acore_world.creature c on m.ID = c.map
+    join acore_world.creature_template ct on c.id1 = ct.entry
+    left join acore_world.creature_loot_template clt on ct.lootid = clt.Entry
+    left join reference_loot_template rlt on clt.Reference = rlt.Entry
+    left join item_template it on rlt.Item = it.entry
+WHERE m.ID = %v and Quality >= 3 and it.bonding = 2 and class IN(2,4)
+
+UNION
+SELECT `+utils.GetItemFields("it")+`
+from
+    acore_world.map_dbc m
+    join acore_world.creature c on m.ID = c.map
+    join acore_world.creature_template ct on c.id1 = ct.entry
+    left join acore_world.creature_loot_template clt on clt.Entry = ct.Entry
+    left join item_template it on clt.Item = it.entry
+WHERE m.ID = %v and Quality >= 3 and it.bonding = 2 and it.class IN(2,4)
+UNION
+SELECT `+utils.GetItemFields("it")+`
+from
+    acore_world.map_dbc m
+    join acore_world.gameobject go on m.ID = go.map
+    left join acore_world.gameobject_template got on go.id = got.entry
+    left join acore_world.gameobject_loot_template glt on glt.Entry = got.Data1
+    left join reference_loot_template rlt on glt.Reference = rlt.Entry
+    left join item_template it on rlt.Item = it.entry
+where m.ID = %v and Quality >=3 and it.bonding IN(1,2) and it.class IN(2,4);
+	`, instanceId, instanceId, instanceId)
+
+	// log.Printf("sql: %s", sql)
+
+	err := db.client.Select(&items, sql)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get additional dungeon items: %v ", err)
+	}
+
+	return items, nil
 }
