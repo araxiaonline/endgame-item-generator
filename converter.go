@@ -13,10 +13,15 @@ func ItemToSql(item models.Item, reqLevel int, difficulty int) string {
 	spellBump := 30000000
 	if difficulty == 4 {
 		entryBump = 21000000
-		spellBump = 31000000
 	}
 	if difficulty == 5 {
 		entryBump = 22000000
+	}
+
+	if *item.Quality == 5 {
+		spellBump = 31000000
+	}
+	if *item.Quality == 6 {
 		spellBump = 32000000
 	}
 
@@ -117,7 +122,7 @@ func ItemToSql(item models.Item, reqLevel int, difficulty int) string {
 	  SellPrice = %v,
 	  Armor = %v
 	WHERE entry = %v;
-	`, *item.Quality, *item.ItemLevel, reqLevel, *item.MinDmg1, *item.MaxDmg1, *item.MinDmg1, *item.MaxDmg2, *item.StatsCount,
+	`, *item.Quality, *item.ItemLevel, reqLevel, *item.MinDmg1, *item.MaxDmg1, *item.MinDmg2, *item.MaxDmg2, *item.StatsCount,
 		*item.StatType1, *item.StatValue1, *item.StatType2, *item.StatValue2, *item.StatType3, *item.StatValue3, *item.StatType4, *item.StatValue4,
 		*item.StatType5, *item.StatValue5, *item.StatType6, *item.StatValue6, *item.StatType7, *item.StatValue7, *item.StatType8, *item.StatValue8,
 		*item.StatType9, *item.StatValue9, *item.StatType10, *item.StatValue10, *item.SpellId1, *item.SpellId2, *item.SpellId3, 375,
