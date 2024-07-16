@@ -278,8 +278,8 @@ func (item *Item) ScaleDPS(level int) (float64, error) {
 	adjDps := (dps * (*item.Delay / 1000) / 100)
 
 	//(((Y8*Y4)/100))*((100 - Y5)) Forumula from Weapon Item Genertor
-	minimum := adjDps * float64(100-(rand.IntN(15)+25))
-	maximum := adjDps * float64(100+(rand.IntN(15)+25))
+	minimum := adjDps * float64(100-(rand.IntN(15)+22))
+	maximum := adjDps * float64(100+(rand.IntN(15)+22))
 
 	// If the weapon has secondary damage, scale that as well based on the ratio of the primary damage
 	if item.MinDmg2 != nil && item.MaxDmg2 != nil {
@@ -291,9 +291,10 @@ func (item *Item) ScaleDPS(level int) (float64, error) {
 		item.MinDmg2 = &minimum2
 		item.MaxDmg2 = &maximum2
 
-		// In order to balance the original scale up remove have of the secondary damage from primary
-		minimum = minimum - float64((minimum2 / 2))
-		maximum = maximum - float64((maximum2 / 2))
+		// In order to balance the original scale of the secondary damage from primary
+		minimum = minimum - float64(minimum2)*0.75
+		maximum = maximum - float64(maximum2)*0.75
+
 	}
 
 	// item.MinDmg1 = &minimum
@@ -440,11 +441,15 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 		return false, errors.New("field quality is not set")
 	}
 
-	log.Printf("Scaling item %v %v to item level %v and quality %v", item.Name, item.Entry, itemLevel, itemQuality)
-
 	fromItemLevel := *item.ItemLevel
 	*item.ItemLevel = itemLevel
-	*item.Quality = itemQuality
+
+	// if an item quality is being forced than use it intead
+	if itemQuality != 0 {
+		*item.Quality = itemQuality
+	}
+
+	log.Printf("Scaling item %v %v to item level %v and quality %v", item.Name, item.Entry, itemLevel, *item.Quality)
 
 	// Get all the spell Stats on the item we can convert
 	spells, err := item.GetSpells()
@@ -474,7 +479,7 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	for statId, stat := range allStats {
 		origValue := stat.Value
 
-		stat.Value = scaleStat(itemLevel, *item.InventoryType, itemQuality, stat.Percent, StatModifiers[statId])
+		stat.Value = scaleStat(itemLevel, *item.InventoryType, *item.Quality, stat.Percent, StatModifiers[statId])
 
 		log.Printf(">>>>>> Scaled : StatId: %v Type: %s Orig: %v - New Value: %v Percent: %v", statId, stat.Type, origValue, stat.Value, stat.Percent)
 	}
@@ -485,7 +490,7 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	// Scale Armor Stats
 	if *item.Class == 4 && *item.Armor > 0 {
 		preArmor := *item.Armor
-		*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[itemQuality] * MaterialModifiers[*item.Subclass]))
+		*item.Armor = int(math.Ceil(float64(itemLevel) * QualityModifiers[*item.Quality] * MaterialModifiers[*item.Subclass]))
 
 		log.Printf("New Armor: %v scaled up from previous armor %v material is %v", *item.Armor, preArmor, *item.Material)
 	}
@@ -527,7 +532,7 @@ func (item *Item) ScaleItem(itemLevel int, itemQuality int) (bool, error) {
 	// Spells that can not be scaled into stats must get new spells scaled and created
 	for _, spell := range otherSpells {
 		log.Printf(" --^^^^^^--------SPELL --- Spell %v (%v) Effect %v  AuraEffect %v Spell Desc: %v basePoints %v", spell.Name, spell.ID, spell.Effect1, spell.EffectAura1, spell.Description, spell.EffectBasePoints1)
-		newId, err := spell.ScaleSpell(fromItemLevel, itemLevel, itemQuality)
+		newId, err := spell.ScaleSpell(fromItemLevel, itemLevel, *item.Quality)
 		if err != nil {
 			log.Printf("Failed to scale spell: %v, Spell %v", err, spell.ID)
 			continue
