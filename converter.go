@@ -18,17 +18,17 @@ func ItemToSql(item models.Item, reqLevel int, difficulty int) string {
 		entryBump = 22000000
 	}
 
-	if *item.Quality == 5 {
+	if *item.Quality == 4 {
 		spellBump = 31000000
 	}
-	if *item.Quality == 6 {
+	if *item.Quality == 5 {
 		spellBump = 32000000
 	}
 
 	spells := ""
 	if len(item.Spells) > 0 {
 		for i, spell := range item.Spells {
-			spells += SpellToSql(spell, difficulty)
+			spells += SpellToSql(spell, *item.Quality)
 			item.UpdateField(fmt.Sprintf("SpellId%v", i), spellBump+spell.ID)
 		}
 	}
@@ -119,25 +119,25 @@ func ItemToSql(item models.Item, reqLevel int, difficulty int) string {
 	  spellid_3 = %v,
 	  RequiredDisenchantSkill = %v,
 	  DisenchantID = %v,
-	  SellPrice = %v,
+	  SellPrice = FLOOR(100000 + (RAND() * 400001)),
 	  Armor = %v
 	WHERE entry = %v;
 	`, *item.Quality, *item.ItemLevel, reqLevel, *item.MinDmg1, *item.MaxDmg1, *item.MinDmg2, *item.MaxDmg2, *item.StatsCount,
 		*item.StatType1, *item.StatValue1, *item.StatType2, *item.StatValue2, *item.StatType3, *item.StatValue3, *item.StatType4, *item.StatValue4,
 		*item.StatType5, *item.StatValue5, *item.StatType6, *item.StatValue6, *item.StatType7, *item.StatValue7, *item.StatType8, *item.StatValue8,
 		*item.StatType9, *item.StatValue9, *item.StatType10, *item.StatValue10, *item.SpellId1, *item.SpellId2, *item.SpellId3, 375,
-		68, 0, *item.Armor, entryBump+item.Entry)
+		68, *item.Armor, entryBump+item.Entry)
 
 	return fmt.Sprintf("%s %s \n %s \n %s", spells, delete, clone, update)
 }
 
-func SpellToSql(spell models.Spell, difficulty int) string {
+func SpellToSql(spell models.Spell, quality int) string {
 
 	entryBump := 30000000
-	if difficulty == 4 {
+	if quality == 4 {
 		entryBump = 31000000
 	}
-	if difficulty == 5 {
+	if quality == 5 {
 		entryBump = 32000000
 	}
 
