@@ -1,12 +1,12 @@
 ## WoW EndGame Item Generator
 
 This is a project I started to learn golang.  The goal is to enable scaling of base items in World Warcraft, based on a few parameters. 
-The idea is using AzerothCore + Autobalance mod + some custom lua I have built to extend endgame content, specifically 5-man dungeon instances. 
+The idea is combining  **mod-autobalance** + some ets-modules I have built to extend endgame content, specifically 5-man dungeon instances. 
 
-This cli will generate a large sql dump of scaled items and spells that can be imported into your acore_world database.  
+This project creates scaled items based on math from a google sheets item generator, but also with some personal preferences. 
 
 ### Prebuilt Items 
-You can either use the script with the options yourself or just grab the pre-run ones I created already with the script.  
+The easiest path is to just download the prebuilt items I have generated.  The intention was for these items to beyond current achievable items 280+ so they are high stats.  Items with few stats ...get kind of insane when scaled. 
 
 `mythic-scaled.sql` : ILevels 301 - 320  epic and rares item_template ids are original entry + 2000000
 
