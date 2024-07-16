@@ -1,10 +1,8 @@
 ---
     name: release go
     on:
-        push: 
-            tags:
-            - 'v*.*.*'        
-        workflow_dispatch:
+        release:
+          types: [created]
 
     jobs:
       binary:
